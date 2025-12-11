@@ -27,13 +27,25 @@ import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 
-const menuItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
-  { icon: Building2, label: "Salas", path: "/rooms" },
-  { icon: Calendar, label: "Minhas Reservas", path: "/bookings" },
-  { icon: CreditCard, label: "Créditos", path: "/credits" },
-  { icon: Settings, label: "Admin", path: "/admin", adminOnly: true },
-];
+const getMenuItems = (role: string) => {
+  if (role === 'admin') {
+    return [
+      { icon: LayoutDashboard, label: "Dashboard", path: "/admin" },
+      { icon: Building2, label: "Gerenciar Salas", path: "/admin/rooms" },
+      { icon: Settings, label: "Regras de Cancelamento", path: "/admin/cancellation-rules" },
+      { icon: Users, label: "Profissionais", path: "/admin/professionals" },
+    ];
+  }
+  
+  // Menu para profissionais
+  return [
+    { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
+    { icon: Building2, label: "Salas", path: "/rooms" },
+    { icon: Calendar, label: "Minhas Reservas", path: "/bookings" },
+    { icon: CreditCard, label: "Créditos", path: "/credits" },
+    { icon: Settings, label: "Configurações", path: "/settings" },
+  ];
+};
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 280;
@@ -115,7 +127,8 @@ function DashboardLayoutContent({
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const activeMenuItem = menuItems.find(item => item.path === location);
+  const menuItems = getMenuItems(user?.role || 'user');
+  const activeMenuItem = menuItems.find((item: any) => item.path === location);
   const isMobile = useIsMobile();
 
   useEffect(() => {
@@ -183,7 +196,7 @@ function DashboardLayoutContent({
 
           <SidebarContent className="gap-0">
             <SidebarMenu className="px-2 py-1">
-              {menuItems.filter(item => !item.adminOnly || user?.role === 'admin').map(item => {
+              {menuItems.map((item: any) => {
                 const isActive = location === item.path;
                 return (
                   <SidebarMenuItem key={item.path}>

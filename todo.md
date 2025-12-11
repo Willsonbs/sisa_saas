@@ -121,3 +121,13 @@
 ## Correção Urgente - Erro de Hooks no BookRoom
 - [x] Corrigir erro "Rendered more hooks than during the previous render" no BookRoom.tsx
 - [x] Garantir que hooks não sejam chamados condicionalmente
+
+## Reestruturação Urgente - Separação de Áreas
+- [x] Criar landing page pública com opções de login separadas (Admin / Profissional)
+- [x] Implementar sistema de cadastro de profissionais
+- [x] Separar completamente área administrativa da área de profissionais
+- [x] Remover botão Admin do menu de profissionais
+- [x] Criar rotas separadas /admin/* e /professional/*
+- [x] Ajustar DashboardLayout para mostrar menus diferentes por perfil
+- [x] Garantir que admin não veja opções de reserva
+- [x] Garantir que profissionais não vejam opções administrativas
