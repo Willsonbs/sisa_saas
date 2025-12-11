@@ -80,7 +80,6 @@ export default function Home() {
             </div>
             <div>
               <h1 className="font-bold text-lg">SISA</h1>
-              <p className="text-xs text-muted-foreground">On Life Clínica</p>
             </div>
           </div>
           <Button onClick={() => window.location.href = getLoginUrl()}>Entrar</Button>
