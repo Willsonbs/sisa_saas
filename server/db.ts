@@ -107,6 +107,27 @@ export async function getUserById(id: number) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+export async function getUserByEmail(email: string) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot get user: database not available");
+    return undefined;
+  }
+
+  const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createPendingProfessional(data: InsertUser) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot create user: database not available");
+    return;
+  }
+
+  await db.insert(users).values(data);
+}
+
 export async function updateUserProfile(userId: number, data: Partial<InsertUser>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

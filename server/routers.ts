@@ -42,6 +42,43 @@ export const appRouter = router({
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
     }),
+    register: publicProcedure
+      .input(z.object({
+        name: z.string().min(3, "Nome deve ter pelo menos 3 caracteres"),
+        email: z.string().email("Email inv\u00e1lido"),
+        phone: z.string().min(10, "Telefone inv\u00e1lido"),
+        professionalRegistry: z.string().min(3, "Registro profissional obrigat\u00f3rio"),
+        registryType: z.enum(["CRP", "CRM", "CRO", "CREFITO", "COREN", "Outro"]),
+        cpf: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        // Verificar se email j\u00e1 existe
+        const existingUser = await db.getUserByEmail(input.email);
+        if (existingUser) {
+          throw new TRPCError({ 
+            code: 'CONFLICT', 
+            message: 'Este email j\u00e1 est\u00e1 cadastrado' 
+          });
+        }
+        
+        // Criar usu\u00e1rio pendente (ser\u00e1 completado no primeiro login OAuth)
+        const tempOpenId = `pending_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        await db.createPendingProfessional({
+          openId: tempOpenId,
+          name: input.name,
+          email: input.email,
+          phone: input.phone,
+          professionalRegistry: input.professionalRegistry,
+          registryType: input.registryType,
+          cpf: input.cpf,
+          role: 'professional',
+        });
+        
+        return { 
+          success: true,
+          message: 'Cadastro realizado! Fa\u00e7a login para acessar o sistema.'
+        };
+      }),
     updateProfile: protectedProcedure
       .input(z.object({
         name: z.string().optional(),

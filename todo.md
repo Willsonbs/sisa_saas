@@ -131,3 +131,10 @@
 - [x] Ajustar DashboardLayout para mostrar menus diferentes por perfil
 - [x] Garantir que admin não veja opções de reserva
 - [x] Garantir que profissionais não vejam opções administrativas
+
+## Funcionalidade Urgente - Cadastro de Profissionais
+- [x] Adicionar formulário de cadastro na landing page
+- [x] Criar procedure tRPC para registrar novos profissionais
+- [x] Implementar validação de dados cadastrais (nome, email, telefone, CRP/CRM/CRO)
+- [x] Criar fluxo de cadastro com confirmação
+- [x] Redirecionar para dashboard após cadastro bem-sucedido
