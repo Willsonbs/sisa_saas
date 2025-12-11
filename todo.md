@@ -117,3 +117,7 @@
 ## Correção Urgente - Erro de Sintaxe
 - [x] Corrigir erro de sintaxe no server/routers.ts linha 457
 - [x] Verificar estrutura do router cancellationRules
+
+## Correção Urgente - Erro de Hooks no BookRoom
+- [x] Corrigir erro "Rendered more hooks than during the previous render" no BookRoom.tsx
+- [x] Garantir que hooks não sejam chamados condicionalmente

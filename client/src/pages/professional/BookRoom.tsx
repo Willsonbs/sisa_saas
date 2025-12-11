@@ -16,6 +16,11 @@ export default function BookRoom() {
   const [, setLocation] = useLocation();
   const roomId = params?.id ? parseInt(params.id) : 0;
   
+  // Hooks devem ser chamados antes de qualquer return condicional
+  const [date, setDate] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  
   const { data: room, isLoading } = trpc.rooms.getById.useQuery({ id: roomId });
   const { data: balance } = trpc.credits.balance.useQuery();
   
@@ -87,10 +92,6 @@ export default function BookRoom() {
       </DashboardLayout>
     );
   }
-
-  const [date, setDate] = useState("");
-  const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
   
   const calculateCost = () => {
     if (!date || !startTime || !endTime || !room) return 0;
