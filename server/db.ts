@@ -394,11 +394,25 @@ export async function createCancellationRule(rule: InsertCancellationRule) {
   return result;
 }
 
+export async function getCancellationRules() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(cancellationRules).orderBy(desc(cancellationRules.hoursBeforeBooking));
+}
+
 export async function updateCancellationRule(id: number, data: Partial<InsertCancellationRule>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
   await db.update(cancellationRules).set(data).where(eq(cancellationRules.id, id));
+}
+
+export async function deleteCancellationRule(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.delete(cancellationRules).where(eq(cancellationRules.id, id));
 }
 
 // ============= NOTIFICATIONS =============

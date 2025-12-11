@@ -9,6 +9,10 @@ import ProfessionalDashboard from "./pages/professional/Dashboard";
 import RoomsPage from "./pages/professional/Rooms";
 import CreditsPage from "./pages/professional/Credits";
 import AdminDashboard from "./pages/admin/Dashboard";
+import RoomsManagement from "./pages/admin/RoomsManagement";
+import CancellationRules from "./pages/admin/CancellationRules";
+import BookRoom from "./pages/professional/BookRoom";
+import Bookings from "./pages/professional/Bookings";
 
 function Router() {
   return (
@@ -22,6 +26,12 @@ function Router() {
       
       {/* Admin Routes */}
       <Route path="/admin" component={AdminDashboard} />
+      <Route path="/admin/rooms" component={RoomsManagement} />
+      <Route path="/admin/cancellation-rules" component={CancellationRules} />
+      
+      {/* Booking Routes */}
+      <Route path="/rooms/:id/book" component={BookRoom} />
+      <Route path="/bookings" component={Bookings} />
       
       {/* Fallback */}
       <Route path="/404" component={NotFound} />

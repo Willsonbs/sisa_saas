@@ -94,3 +94,14 @@
 ## Correções Urgentes
 - [x] Criar página /admin para administradores
 - [x] Adicionar rota /admin no App.tsx
+
+## Funcionalidades Pendentes - Urgente
+- [x] Criar página de gerenciamento de salas (/admin/rooms)
+- [x] Criar formulário de criação/edição de salas
+- [x] Implementar upload de fotos de salas
+- [x] Criar página de gerenciamento de regras de cancelamento
+- [x] Criar página de agendamento/reserva de salas
+- [x] Implementar visualização de agenda com disponibilidade
+- [x] Criar formulário de nova reserva
+- [x] Implementar listagem de reservas do profissional
+- [x] Criar página de detalhes da reserva com cancelamento

@@ -5,6 +5,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import * as db from "./db";
+import { getCancellationRules, createCancellationRule, updateCancellationRule, deleteCancellationRule } from "./db";
 import { getCreditPackageById, CREDIT_PACKAGES } from "./products";
 import { 
   sendEmail, 
@@ -179,7 +180,19 @@ export const appRouter = router({
     list: professionalProcedure
       .input(z.object({ status: z.string().optional() }).optional())
       .query(async ({ ctx, input }) => {
-        return db.getBookingsByProfessional(ctx.user.id, input?.status);
+        const bookings = await db.getBookingsByProfessional(ctx.user.id, input?.status);
+        
+        const enrichedBookings = await Promise.all(
+          bookings.map(async (booking) => {
+            const room = await db.getRoomById(booking.roomId);
+            return {
+              ...booking,
+              room,
+            };
+          })
+        );
+        
+        return enrichedBookings;
       }),
     
     upcoming: professionalProcedure
@@ -457,34 +470,42 @@ export const appRouter = router({
         totalProfessionals: professionals.length,
       };
     }),
-    
+
     cancellationRules: router({
-      list: adminProcedure.query(async () => {
-        return db.getActiveCancellationRules();
+      list: publicProcedure.query(async () => {
+        return await getCancellationRules();
       }),
-      
       create: adminProcedure
-        .input(z.object({
-          hoursBeforeBooking: z.number(),
-          refundPercentage: z.number().min(0).max(100),
-          description: z.string().optional(),
-        }))
+        .input(
+          z.object({
+            hoursBeforeBooking: z.number().min(0),
+            refundPercentage: z.number().min(0).max(100),
+            description: z.string(),
+            isActive: z.boolean().optional(),
+          })
+        )
         .mutation(async ({ input }) => {
-          await db.createCancellationRule(input);
+          await createCancellationRule(input);
           return { success: true };
         }),
-      
       update: adminProcedure
-        .input(z.object({
-          id: z.number(),
-          hoursBeforeBooking: z.number().optional(),
-          refundPercentage: z.number().min(0).max(100).optional(),
-          description: z.string().optional(),
-          isActive: z.boolean().optional(),
-        }))
+        .input(
+          z.object({
+            id: z.number(),
+            hoursBeforeBooking: z.number().min(0).optional(),
+            refundPercentage: z.number().min(0).max(100).optional(),
+            description: z.string().optional(),
+            isActive: z.boolean().optional(),
+          })
+        )
         .mutation(async ({ input }) => {
-          const { id, ...data } = input;
-          await db.updateCancellationRule(id, data);
+          await updateCancellationRule(input.id, input);
+          return { success: true };
+        }),
+      delete: adminProcedure
+        .input(z.object({ id: z.number() }))
+        .mutation(async ({ input }) => {
+          await deleteCancellationRule(input.id);
           return { success: true };
         }),
     }),
