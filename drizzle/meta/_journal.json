@@ -15,6 +15,13 @@
       "when": 1765469941756,
       "tag": "0001_lowly_giant_man",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1765476901975,
+      "tag": "0002_stiff_winter_soldier",
+      "breakpoints": true
     }
   ]
 }

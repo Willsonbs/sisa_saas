@@ -18,6 +18,7 @@ export default function Home() {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
+    password: "",
     phone: "",
     professionalRegistry: "",
     registryType: "CRP" as "CRP" | "CRM" | "CRO" | "CREFITO" | "COREN" | "Outro",
@@ -31,6 +32,7 @@ export default function Home() {
       setFormData({
         name: "",
         email: "",
+        password: "",
         phone: "",
         professionalRegistry: "",
         registryType: "CRP",
@@ -38,7 +40,7 @@ export default function Home() {
       });
       // Redirecionar para login
       setTimeout(() => {
-        window.location.href = getLoginUrl();
+        setLocation('/login');
       }, 2000);
     },
     onError: (error) => {
@@ -82,7 +84,7 @@ export default function Home() {
               <h1 className="font-bold text-lg">SISA</h1>
             </div>
           </div>
-          <Button onClick={() => window.location.href = getLoginUrl()}>Entrar</Button>
+          <Button onClick={() => setLocation('/login')}>Entrar</Button>
         </div>
       </header>
 
@@ -149,6 +151,19 @@ export default function Home() {
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                         required
                         placeholder="seu@email.com"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Senha *</Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        value={formData.password}
+                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        required
+                        placeholder="M\u00ednimo 6 caracteres"
+                        minLength={6}
                       />
                     </div>
 
@@ -323,7 +338,7 @@ export default function Home() {
             <p className="text-xl text-muted-foreground mb-8">
               Faça login agora e comece a gerenciar suas reservas de forma profissional
             </p>
-            <Button size="lg" onClick={() => window.location.href = getLoginUrl()}>
+            <Button size="lg" onClick={() => setLocation('/login')}>
               Acessar Plataforma
             </Button>
           </div>

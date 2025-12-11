@@ -39,6 +39,7 @@ export const appRouter = router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
+      ctx.res.clearCookie('auth_token', { ...cookieOptions, maxAge: -1 });
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
     }),
@@ -46,12 +47,15 @@ export const appRouter = router({
       .input(z.object({
         name: z.string().min(3, "Nome deve ter pelo menos 3 caracteres"),
         email: z.string().email("Email inv\u00e1lido"),
+        password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
         phone: z.string().min(10, "Telefone inv\u00e1lido"),
         professionalRegistry: z.string().min(3, "Registro profissional obrigat\u00f3rio"),
         registryType: z.enum(["CRP", "CRM", "CRO", "CREFITO", "COREN", "Outro"]),
         cpf: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
+        const { hashPassword } = await import('./auth');
+        
         // Verificar se email j\u00e1 existe
         const existingUser = await db.getUserByEmail(input.email);
         if (existingUser) {
@@ -61,22 +65,72 @@ export const appRouter = router({
           });
         }
         
-        // Criar usu\u00e1rio pendente (ser\u00e1 completado no primeiro login OAuth)
-        const tempOpenId = `pending_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        await db.createPendingProfessional({
-          openId: tempOpenId,
-          name: input.name,
+        // Hash da senha
+        const hashedPassword = await hashPassword(input.password);
+        
+        // Criar usu\u00e1rio
+        await db.createProfessional({
           email: input.email,
+          password: hashedPassword,
+          name: input.name,
           phone: input.phone,
           professionalRegistry: input.professionalRegistry,
           registryType: input.registryType,
           cpf: input.cpf,
           role: 'professional',
+          loginMethod: 'password',
         });
         
         return { 
           success: true,
           message: 'Cadastro realizado! Fa\u00e7a login para acessar o sistema.'
+        };
+      }),
+    login: publicProcedure
+      .input(z.object({
+        email: z.string().email("Email inv\u00e1lido"),
+        password: z.string().min(1, "Senha obrigat\u00f3ria"),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { verifyPassword, generateToken } = await import('./auth');
+        const { getSessionCookieOptions } = await import('./_core/cookies');
+        
+        // Buscar usu\u00e1rio
+        const user = await db.getUserByEmail(input.email);
+        if (!user || !user.password) {
+          throw new TRPCError({ 
+            code: 'UNAUTHORIZED', 
+            message: 'Email ou senha inv\u00e1lidos' 
+          });
+        }
+        
+        // Verificar senha
+        const isValid = await verifyPassword(input.password, user.password);
+        if (!isValid) {
+          throw new TRPCError({ 
+            code: 'UNAUTHORIZED', 
+            message: 'Email ou senha inv\u00e1lidos' 
+          });
+        }
+        
+        // Gerar token JWT
+        const token = await generateToken(user.id, user.email, user.role);
+        
+        // Definir cookie
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie('auth_token', token, {
+          ...cookieOptions,
+          maxAge: 7 * 24 * 60 * 60 * 1000, // 7 dias
+        });
+        
+        return { 
+          success: true,
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+          }
         };
       }),
     updateProfile: protectedProcedure

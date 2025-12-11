@@ -29,8 +29,8 @@ export async function getDb() {
 }
 
 export async function upsertUser(user: InsertUser): Promise<void> {
-  if (!user.openId) {
-    throw new Error("User openId is required for upsert");
+  if (!user.openId && !user.email) {
+    throw new Error("User openId or email is required for upsert");
   }
 
   const db = await getDb();
@@ -41,7 +41,8 @@ export async function upsertUser(user: InsertUser): Promise<void> {
 
   try {
     const values: InsertUser = {
-      openId: user.openId,
+      email: user.email || `temp_${Date.now()}@temp.com`,
+      openId: user.openId || null,
     };
     const updateSet: Record<string, unknown> = {};
 
@@ -52,8 +53,13 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       const value = user[field];
       if (value === undefined) return;
       const normalized = value ?? null;
-      values[field] = normalized;
-      updateSet[field] = normalized;
+      if (field === 'email' && normalized) {
+        values[field] = normalized;
+        updateSet[field] = normalized;
+      } else if (field !== 'email') {
+        (values as any)[field] = normalized;
+        updateSet[field] = normalized;
+      }
     };
 
     textFields.forEach(assignNullable);
@@ -118,7 +124,7 @@ export async function getUserByEmail(email: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-export async function createPendingProfessional(data: InsertUser) {
+export async function createProfessional(data: InsertUser) {
   const db = await getDb();
   if (!db) {
     console.warn("[Database] Cannot create user: database not available");

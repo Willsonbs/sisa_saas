@@ -49,9 +49,12 @@ describe("auth.logout", () => {
     const result = await caller.auth.logout();
 
     expect(result).toEqual({ success: true });
-    expect(clearedCookies).toHaveLength(1);
-    expect(clearedCookies[0]?.name).toBe(COOKIE_NAME);
-    expect(clearedCookies[0]?.options).toMatchObject({
+    expect(clearedCookies.length).toBeGreaterThanOrEqual(1);
+    
+    // Verificar se o cookie auth_token foi limpo
+    const authTokenCookie = clearedCookies.find(c => c.name === 'auth_token');
+    expect(authTokenCookie).toBeDefined();
+    expect(authTokenCookie?.options).toMatchObject({
       maxAge: -1,
       secure: true,
       sameSite: "none",

@@ -138,3 +138,15 @@
 - [x] Implementar validação de dados cadastrais (nome, email, telefone, CRP/CRM/CRO)
 - [x] Criar fluxo de cadastro com confirmação
 - [x] Redirecionar para dashboard após cadastro bem-sucedido
+
+## Urgente - Sistema de Autenticação Próprio
+- [x] Adicionar campo de senha no schema do banco de dados
+- [x] Adicionar campo de senha no formulário de cadastro
+- [x] Implementar hash de senha com bcrypt
+- [x] Criar página de login própria (/login) com email e senha
+- [x] Implementar procedure de login que valida email/senha
+- [x] Gerar JWT token próprio após login bem-sucedido
+- [x] Criar middleware de autenticação JWT
+- [x] Substituir OAuth Manus por autenticação própria
+- [x] Atualizar useAuth para usar sistema próprio
+- [ ] Adicionar botão "Esqueci minha senha" (opcional)
