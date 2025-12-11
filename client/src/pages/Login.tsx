@@ -18,14 +18,14 @@ export default function Login() {
   const loginMutation = trpc.auth.login.useMutation({
     onSuccess: (data) => {
       toast.success("Login realizado com sucesso!");
-      // Redirecionar baseado no role
-      if (data.user.role === 'admin') {
-        setLocation('/admin');
-      } else {
-        setLocation('/dashboard');
-      }
-      // Recarregar para atualizar contexto de autenticação
-      setTimeout(() => window.location.reload(), 100);
+      // Redirecionar baseado no role com reload completo
+      setTimeout(() => {
+        if (data.user.role === 'admin') {
+          window.location.href = '/admin';
+        } else {
+          window.location.href = '/dashboard';
+        }
+      }, 500);
     },
     onError: (error) => {
       toast.error(error.message);

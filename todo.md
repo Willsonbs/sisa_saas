@@ -150,3 +150,18 @@
 - [x] Substituir OAuth Manus por autenticação própria
 - [x] Atualizar useAuth para usar sistema próprio
 - [ ] Adicionar botão "Esqueci minha senha" (opcional)
+
+## Urgente - Atualizar Senha do Usuário Erika
+- [x] Buscar usuário erika@ no banco de dados
+- [x] Gerar hash da senha 59ek6bj76p
+- [x] Atualizar campo password no banco de dados
+- [x] Testar login com as novas credenciais
+
+## Urgente - Corrigir Erro Após Login
+- [x] Verificar logs do servidor para identificar erro
+- [x] Verificar se cookie auth_token está sendo setado corretamente
+- [x] Verificar se contexto de autenticação está funcionando
+- [x] Corrigir redirecionamento após login
+- [x] Testar fluxo completo de login e acesso ao dashboard
+- [x] Adicionar cookie-parser middleware no servidor Express
+- [x] Validar autenticação JWT funcionando corretamente
