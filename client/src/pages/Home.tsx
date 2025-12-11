@@ -348,7 +348,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="border-t py-8 px-4">
         <div className="container text-center text-sm text-muted-foreground">
-          <p>© 2024 SISA - On Life Clínica. Todos os direitos reservados.</p>
+          <p>© 2024 SISA - Todos os direitos reservados.</p>
         </div>
       </footer>
     </div>
