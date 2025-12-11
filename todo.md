@@ -90,3 +90,7 @@
 - [x] Implementar tema profissional
 - [x] Garantir responsividade mobile
 - [ ] Adicionar micro-interações
+
+## Correções Urgentes
+- [x] Criar página /admin para administradores
+- [x] Adicionar rota /admin no App.tsx

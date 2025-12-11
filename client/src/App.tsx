@@ -8,6 +8,7 @@ import Home from "./pages/Home";
 import ProfessionalDashboard from "./pages/professional/Dashboard";
 import RoomsPage from "./pages/professional/Rooms";
 import CreditsPage from "./pages/professional/Credits";
+import AdminDashboard from "./pages/admin/Dashboard";
 
 function Router() {
   return (
@@ -18,6 +19,9 @@ function Router() {
       <Route path="/dashboard" component={ProfessionalDashboard} />
       <Route path="/rooms" component={RoomsPage} />
       <Route path="/credits" component={CreditsPage} />
+      
+      {/* Admin Routes */}
+      <Route path="/admin" component={AdminDashboard} />
       
       {/* Fallback */}
       <Route path="/404" component={NotFound} />
