@@ -105,3 +105,7 @@
 - [x] Criar formulário de nova reserva
 - [x] Implementar listagem de reservas do profissional
 - [x] Criar página de detalhes da reserva com cancelamento
+
+## Correção Urgente - Page 2
+- [x] Investigar qual rota está configurada como Page 2 no DashboardLayout
+- [x] Criar página correspondente ou ajustar navegação
