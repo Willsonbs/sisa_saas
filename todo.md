@@ -165,3 +165,8 @@
 - [x] Testar fluxo completo de login e acesso ao dashboard
 - [x] Adicionar cookie-parser middleware no servidor Express
 - [x] Validar autenticação JWT funcionando corretamente
+
+## Correção Urgente - Página de Profissionais
+- [x] Criar página /admin/professionals para listar profissionais
+- [x] Adicionar rota /admin/professionals no App.tsx
+- [x] Testar navegação e funcionalidade

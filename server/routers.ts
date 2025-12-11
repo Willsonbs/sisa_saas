@@ -551,6 +551,9 @@ export const appRouter = router({
   }),
 
   admin: router({
+    listUsers: adminProcedure.query(async () => {
+      return await db.getAllProfessionals();
+    }),
     stats: adminProcedure.query(async () => {
       const rooms = await db.getAllRooms();
       const professionals = await db.getAllProfessionals();
