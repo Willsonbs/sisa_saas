@@ -470,45 +470,45 @@ export const appRouter = router({
         totalProfessionals: professionals.length,
       };
     }),
+  }),
 
-    cancellationRules: router({
-      list: publicProcedure.query(async () => {
-        return await getCancellationRules();
-      }),
-      create: adminProcedure
-        .input(
-          z.object({
-            hoursBeforeBooking: z.number().min(0),
-            refundPercentage: z.number().min(0).max(100),
-            description: z.string(),
-            isActive: z.boolean().optional(),
-          })
-        )
-        .mutation(async ({ input }) => {
-          await createCancellationRule(input);
-          return { success: true };
-        }),
-      update: adminProcedure
-        .input(
-          z.object({
-            id: z.number(),
-            hoursBeforeBooking: z.number().min(0).optional(),
-            refundPercentage: z.number().min(0).max(100).optional(),
-            description: z.string().optional(),
-            isActive: z.boolean().optional(),
-          })
-        )
-        .mutation(async ({ input }) => {
-          await updateCancellationRule(input.id, input);
-          return { success: true };
-        }),
-      delete: adminProcedure
-        .input(z.object({ id: z.number() }))
-        .mutation(async ({ input }) => {
-          await deleteCancellationRule(input.id);
-          return { success: true };
-        }),
+  cancellationRules: router({
+    list: publicProcedure.query(async () => {
+      return await getCancellationRules();
     }),
+    create: adminProcedure
+      .input(
+        z.object({
+          hoursBeforeBooking: z.number().min(0),
+          refundPercentage: z.number().min(0).max(100),
+          description: z.string(),
+          isActive: z.boolean().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        await createCancellationRule(input);
+        return { success: true };
+      }),
+    update: adminProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          hoursBeforeBooking: z.number().min(0).optional(),
+          refundPercentage: z.number().min(0).max(100).optional(),
+          description: z.string().optional(),
+          isActive: z.boolean().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        await updateCancellationRule(input.id, input);
+        return { success: true };
+      }),
+    delete: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteCancellationRule(input.id);
+        return { success: true };
+      }),
   }),
 
   apiKeys: router({

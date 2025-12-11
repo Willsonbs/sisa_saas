@@ -8,7 +8,7 @@ import { Link } from "wouter";
 export default function AdminDashboard() {
   const { data: stats, isLoading } = trpc.admin.stats.useQuery();
   const { data: rooms } = trpc.rooms.list.useQuery({ includeInactive: true });
-  const { data: cancellationRules } = trpc.admin.cancellationRules.list.useQuery();
+  const { data: cancellationRules } = trpc.cancellationRules.list.useQuery();
 
   return (
     <DashboardLayout>

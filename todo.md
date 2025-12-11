@@ -109,3 +109,11 @@
 ## Correção Urgente - Page 2
 - [x] Investigar qual rota está configurada como Page 2 no DashboardLayout
 - [x] Criar página correspondente ou ajustar navegação
+
+## Correção Urgente - Rota /some-path
+- [x] Encontrar e remover referências à rota /some-path
+- [x] Verificar se há outras rotas antigas no código
+
+## Correção Urgente - Erro de Sintaxe
+- [x] Corrigir erro de sintaxe no server/routers.ts linha 457
+- [x] Verificar estrutura do router cancellationRules

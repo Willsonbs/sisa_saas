@@ -15,35 +15,35 @@ export default function CancellationRules() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<any>(null);
   
-  const { data: rules, isLoading, refetch } = trpc.admin.cancellationRules.list.useQuery();
-  const createMutation = trpc.admin.cancellationRules.create.useMutation({
+  const { data: rules, isLoading, refetch } = trpc.cancellationRules.list.useQuery();
+  const createMutation = trpc.cancellationRules.create.useMutation({
     onSuccess: () => {
       toast.success("Regra criada com sucesso!");
       setIsCreateOpen(false);
       refetch();
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast.error(error.message);
     },
   });
   
-  const updateMutation = trpc.admin.cancellationRules.update.useMutation({
+  const updateMutation = trpc.cancellationRules.update.useMutation({
     onSuccess: () => {
       toast.success("Regra atualizada com sucesso!");
       setEditingRule(null);
       refetch();
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast.error(error.message);
     },
   });
 
-  const deleteMutation = trpc.admin.cancellationRules.delete.useMutation({
+  const deleteMutation = trpc.cancellationRules.delete.useMutation({
     onSuccess: () => {
       toast.success("Regra removida com sucesso!");
       refetch();
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast.error(error.message);
     },
   });
