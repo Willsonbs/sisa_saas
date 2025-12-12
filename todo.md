@@ -182,3 +182,6 @@
 - [x] Criar página de relatórios (/admin/reports)
 - [x] Adicionar rota de relatórios no App.tsx
 - [x] Testar navegação de todas as páginas
+
+## Correção Urgente - Botão Editar Salas
+- [x] Corrigir link do botão Editar em RoomsManagement.tsx para /admin/rooms/:id/edit

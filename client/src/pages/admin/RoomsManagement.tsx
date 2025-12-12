@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
 import { Building2, Plus, Pencil, Trash2, Upload } from "lucide-react";
+import { Link } from "wouter";
 import { formatCurrency } from "@/lib/utils";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -250,21 +251,12 @@ export default function RoomsManagement() {
                   )}
 
                   <div className="flex gap-2 pt-4 border-t">
-                    <Dialog open={editingRoom?.id === room.id} onOpenChange={(open) => !open && setEditingRoom(null)}>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm" className="flex-1" onClick={() => setEditingRoom(room)}>
-                          <Pencil className="mr-2 h-4 w-4" />
-                          Editar
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                          <DialogTitle>Editar Sala</DialogTitle>
-                          <DialogDescription>Atualize os dados da sala</DialogDescription>
-                        </DialogHeader>
-                        <RoomForm room={editingRoom} />
-                      </DialogContent>
-                    </Dialog>
+                    <Link href={`/admin/rooms/${room.id}/edit`}>
+                      <Button variant="outline" size="sm" className="flex-1">
+                        <Pencil className="mr-2 h-4 w-4" />
+                        Editar
+                      </Button>
+                    </Link>
 
                     <Button
                       variant="outline"
