@@ -175,3 +175,10 @@
 - [x] Identificar chamada de navegação durante render no Home.tsx linha 66
 - [x] Mover navegação para useEffect
 - [x] Testar correção
+
+## Correção Urgente - Páginas com Erro 404
+- [x] Criar página de edição de salas (/admin/rooms/:id/edit)
+- [x] Adicionar rota de edição no App.tsx
+- [x] Criar página de relatórios (/admin/reports)
+- [x] Adicionar rota de relatórios no App.tsx
+- [x] Testar navegação de todas as páginas

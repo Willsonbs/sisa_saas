@@ -13,6 +13,8 @@ import AdminDashboard from "./pages/admin/Dashboard";
 import RoomsManagement from "./pages/admin/RoomsManagement";
 import CancellationRules from "./pages/admin/CancellationRules";
 import Professionals from "./pages/admin/Professionals";
+import EditRoom from "./pages/admin/EditRoom";
+import Reports from "./pages/admin/Reports";
 import BookRoom from "./pages/professional/BookRoom";
 import Bookings from "./pages/professional/Bookings";
 
@@ -32,6 +34,8 @@ function Router() {
       <Route path="/admin/rooms" component={RoomsManagement} />
       <Route path="/admin/cancellation-rules" component={CancellationRules} />
       <Route path="/admin/professionals" component={Professionals} />
+      <Route path="/admin/rooms/:id/edit" component={EditRoom} />
+      <Route path="/admin/reports" component={Reports} />
       
       {/* Booking Routes */}
       <Route path="/rooms/:id/book" component={BookRoom} />
