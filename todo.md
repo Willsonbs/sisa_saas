@@ -170,3 +170,8 @@
 - [x] Criar página /admin/professionals para listar profissionais
 - [x] Adicionar rota /admin/professionals no App.tsx
 - [x] Testar navegação e funcionalidade
+
+## Correção Urgente - Erro setState durante Render
+- [x] Identificar chamada de navegação durante render no Home.tsx linha 66
+- [x] Mover navegação para useEffect
+- [x] Testar correção

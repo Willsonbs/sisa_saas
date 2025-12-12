@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getLoginUrl } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { Calendar, CreditCard, Shield, Bell, TrendingUp, Zap, Building2, UserPlus } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
@@ -53,22 +53,23 @@ export default function Home() {
     registerMutation.mutate(formData);
   };
 
+  // Se já estiver autenticado, redirecionar baseado no role
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      if (user.role === 'admin') {
+        setLocation('/admin');
+      } else {
+        setLocation('/dashboard');
+      }
+    }
+  }, [isAuthenticated, user, setLocation]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
-  }
-
-  // Se já estiver autenticado, redirecionar baseado no role
-  if (isAuthenticated && user) {
-    if (user.role === 'admin') {
-      setLocation('/admin');
-    } else {
-      setLocation('/dashboard');
-    }
-    return null;
   }
 
   return (
