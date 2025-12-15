@@ -178,7 +178,7 @@ export default function CancellationRules() {
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
                           <div className="flex items-center gap-2">
-                            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center" style={{width: '42px', height: '42px'}}>
                               <span className="text-lg font-bold text-primary">
                                 {rule.refundPercentage}%
                               </span>

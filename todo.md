@@ -185,3 +185,13 @@
 
 ## Correção Urgente - Botão Editar Salas
 - [x] Corrigir link do botão Editar em RoomsManagement.tsx para /admin/rooms/:id/edit
+
+## Nova Funcionalidade - Calendário Interativo
+- [x] Instalar react-big-calendar e moment
+- [x] Criar componente Calendar com visualização de reservas
+- [x] Adicionar rota /calendar no App.tsx
+- [x] Adicionar link no menu de navegação
+- [x] Adicionar funcionalidade de criar reserva clicando em slot vazio
+- [x] Adicionar visualização de detalhes ao clicar em reserva existente
+- [x] Adicionar filtro por sala
+- [x] Testar navegação e funcionalidades do calendário

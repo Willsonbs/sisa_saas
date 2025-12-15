@@ -17,6 +17,7 @@ import EditRoom from "./pages/admin/EditRoom";
 import Reports from "./pages/admin/Reports";
 import BookRoom from "./pages/professional/BookRoom";
 import Bookings from "./pages/professional/Bookings";
+import CalendarPage from "./pages/professional/Calendar";
 
 function Router() {
   return (
@@ -40,6 +41,7 @@ function Router() {
       {/* Booking Routes */}
       <Route path="/rooms/:id/book" component={BookRoom} />
       <Route path="/bookings" component={Bookings} />
+      <Route path="/calendar" component={CalendarPage} />
       
       {/* Fallback */}
       <Route path="/404" component={NotFound} />

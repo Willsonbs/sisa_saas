@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 // import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, Calendar, CreditCard, Building2, Settings } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, Calendar, CalendarDays, CreditCard, Building2, Settings } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -42,6 +42,7 @@ const getMenuItems = (role: string) => {
     { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
     { icon: Building2, label: "Salas", path: "/rooms" },
     { icon: Calendar, label: "Minhas Reservas", path: "/bookings" },
+    { icon: CalendarDays, label: "Calendário", path: "/calendar" },
     { icon: CreditCard, label: "Créditos", path: "/credits" },
     { icon: Settings, label: "Configurações", path: "/settings" },
   ];
