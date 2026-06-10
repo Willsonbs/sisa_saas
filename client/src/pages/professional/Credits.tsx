@@ -3,8 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { CreditCard, TrendingUp, Check, Sparkles, CheckCircle2, XCircle } from "lucide-react";
-import { useEffect } from "react";
+import { CreditCard, TrendingUp, Check, Sparkles, QrCode } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useSearch } from "wouter";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
@@ -17,6 +17,8 @@ export default function CreditsPage() {
   const { data: balance, isLoading: loadingBalance, refetch: refetchBalance } = trpc.credits.balance.useQuery();
   const { data: history, isLoading: loadingHistory, refetch: refetchHistory } = trpc.credits.history.useQuery({ limit: 10 });
   const { data: packages } = trpc.credits.packages.useQuery();
+
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'pix'>('card');
 
   const checkoutMutation = trpc.payments.createCheckout.useMutation({
     onSuccess: (data: any) => {
@@ -58,6 +60,45 @@ export default function CreditsPage() {
               <div className="h-12 w-40 bg-white/20 animate-pulse rounded" />
             ) : (
               <div className="text-5xl font-bold">{formatCurrency(balance || 0)}</div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Payment Method Selector */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Forma de Pagamento</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setPaymentMethod('card')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all ${
+                  paymentMethod === 'card'
+                    ? 'border-primary bg-primary/5 text-primary'
+                    : 'border-border hover:border-primary/50'
+                }`}
+              >
+                <CreditCard className="h-4 w-4" />
+                <span className="text-sm font-medium">Cartão de Crédito</span>
+              </button>
+              <button
+                onClick={() => setPaymentMethod('pix')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all ${
+                  paymentMethod === 'pix'
+                    ? 'border-primary bg-primary/5 text-primary'
+                    : 'border-border hover:border-primary/50'
+                }`}
+              >
+                <QrCode className="h-4 w-4" />
+                <span className="text-sm font-medium">PIX</span>
+                <span className="text-xs text-muted-foreground">(conta BR)</span>
+              </button>
+            </div>
+            {paymentMethod === 'pix' && (
+              <p className="text-xs text-amber-600 mt-2">
+                PIX requer conta Stripe com pagamentos brasileiros habilitados. Se não disponível, o sistema redirecionará automaticamente para cartão.
+              </p>
             )}
           </CardContent>
         </Card>
@@ -110,7 +151,7 @@ export default function CreditsPage() {
                     className="w-full"
                     variant={pkg.popular ? 'default' : 'outline'}
                     disabled={checkoutMutation.isPending}
-                    onClick={() => checkoutMutation.mutate({ packageId: pkg.id })}
+                    onClick={() => checkoutMutation.mutate({ packageId: pkg.id, paymentMethod })}
                   >
                     {checkoutMutation.isPending ? "Redirecionando..." : "Comprar Agora"}
                   </Button>

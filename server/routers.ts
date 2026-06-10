@@ -588,6 +588,7 @@ export const appRouter = router({
     createCheckout: professionalProcedure
       .input(z.object({
         packageId: z.string(),
+        paymentMethod: z.enum(['card', 'pix']).optional().default('card'),
       }))
       .mutation(async ({ ctx, input }) => {
         const pkg = getCreditPackageById(input.packageId);
@@ -607,30 +608,49 @@ export const appRouter = router({
         });
         
         const appUrl = process.env.VITE_APP_URL || 'http://localhost:3000';
-        const session = await stripe.checkout.sessions.create({
-          payment_method_types: ['card'],
-          line_items: [{
-            price_data: {
-              currency: 'brl',
-              product_data: {
-                name: pkg.name,
-                description: pkg.description,
+        const paymentMethods: ('card' | 'boleto' | 'pix')[] = input.paymentMethod === 'pix' ? ['pix'] : ['card'];
+
+        // PIX requires a Stripe account with Brazilian payment methods enabled.
+        // If PIX is requested but not available, fall back to card.
+        const createStripeSession = async (methods: ('card' | 'boleto' | 'pix')[]) => {
+          return stripe.checkout.sessions.create({
+            payment_method_types: methods,
+            line_items: [{
+              price_data: {
+                currency: 'brl',
+                product_data: {
+                  name: pkg.name,
+                  description: pkg.description,
+                },
+                unit_amount: pkg.price,
               },
-              unit_amount: pkg.price,
+              quantity: 1,
+            }],
+            mode: 'payment',
+            success_url: `${appUrl}/credits?payment=success`,
+            cancel_url: `${appUrl}/credits?payment=cancelled`,
+            metadata: {
+              professionalId: ctx.user.id.toString(),
+              tenantId: tenantId.toString(),
+              packageId: pkg.id,
+              credits: pkg.credits.toString(),
+              paymentRecordId: (paymentResult as any)?.insertId?.toString() || '',
             },
-            quantity: 1,
-          }],
-          mode: 'payment',
-          success_url: `${appUrl}/credits?payment=success`,
-          cancel_url: `${appUrl}/credits?payment=cancelled`,
-          metadata: {
-            professionalId: ctx.user.id.toString(),
-            tenantId: tenantId.toString(),
-            packageId: pkg.id,
-            credits: pkg.credits.toString(),
-            paymentRecordId: (paymentResult as any)?.insertId?.toString() || '',
-          },
-        });
+          });
+        };
+
+        let session;
+        try {
+          session = await createStripeSession(paymentMethods);
+        } catch (err: any) {
+          // PIX may not be available on this Stripe account - fall back to card
+          if (input.paymentMethod === 'pix' && err?.message?.includes('payment_method_types')) {
+            console.warn('[Stripe] PIX not available, falling back to card:', err.message);
+            session = await createStripeSession(['card']);
+          } else {
+            throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: err.message || 'Erro ao criar checkout' });
+          }
+        }
 
         // Update payment record with Stripe session ID for tracking
         const insertResult = paymentResult as any;

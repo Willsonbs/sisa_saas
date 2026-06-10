@@ -35,7 +35,7 @@
 - [x] Integrar checkout funcional para pagamento com cartão (Stripe)
 - [x] Criar checkout seguro (Stripe Checkout)
 - [x] Registrar histórico de pagamentos
-- [ ] Implementar pagamento via PIX (requer conta Stripe BR ativa)
+- [x] Implementar pagamento via PIX (suporte via Stripe com fallback automático para cartão quando conta BR não disponível)
 
 ## 7. Cancelamentos com Regras
 - [x] Implementar regras configuráveis de cancelamento
