@@ -10,7 +10,7 @@ interface EmailOptions {
   subject: string;
   html: string;
   userId: number;
-  type: "booking_confirmation" | "booking_reminder" | "booking_cancelled" | "payment_success" | "payment_failed" | "credit_added" | "general";
+  type: "booking_confirmation" | "booking_reminder_24h" | "booking_reminder_2h" | "booking_cancelled" | "booking_blocked_cancellation" | "payment_success" | "payment_failed" | "credit_added" | "noshow_registered" | "professional_approved" | "professional_blocked" | "general";
   bookingId?: number;
   paymentId?: number;
 }

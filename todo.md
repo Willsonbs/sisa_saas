@@ -18,7 +18,7 @@
 - [x] Gerenciar status ativa/inativa
 
 ## 4. Sistema de Agenda e Reservas
-- [ ] Criar visualização de agenda estilo Google Calendar
+- [x] Criar visualização de agenda estilo Google Calendar
 - [x] Implementar bloqueio automático de horários no pré-agendamento
 - [x] Prevenir conflitos de agendamento simultâneo (transações atômicas)
 - [x] Criar sistema de reservas com validação de disponibilidade
@@ -32,10 +32,9 @@
 - [x] Criar extrato de movimentação de créditos
 
 ## 6. Sistema de Pagamentos
-- [ ] Integrar Stripe para pagamento com cartão
+- [ ] Integrar checkout funcional para pagamento com cartão (Stripe)
 - [ ] Implementar pagamento via PIX
 - [ ] Criar checkout seguro
-- [ ] Gerar nota fiscal automática para cada transação
 - [ ] Registrar histórico de pagamentos
 
 ## 7. Cancelamentos com Regras
@@ -45,153 +44,80 @@
 - [x] Notificar profissional sobre cancelamento
 
 ## 8. Dashboards por Perfil
-- [ ] Dashboard do Profissional (próximas reservas, créditos, extrato, histórico)
-- [ ] Dashboard do Administrador (visão geral, ocupação, faturamento)
-- [ ] Agenda da Recepção (nome profissional, paciente, sala, horário - sem dados sensíveis)
-- [ ] Dashboard Financeiro (relatórios, faturamento)
+- [x] Dashboard do Profissional (próximas reservas, créditos, extrato, histórico)
+- [x] Dashboard do Administrador (visão geral, ocupação, faturamento)
 
 ## 9. Sistema de Notificações
 - [x] Enviar email de confirmação de reserva
-- [ ] Enviar lembrete antes do horário agendado
+- [x] Enviar lembrete automático 24h antes do horário agendado (reminderService.ts)
+- [x] Enviar lembrete automático 2h antes do horário agendado (reminderService.ts)
 - [x] Notificar cancelamento
-- [ ] Alertar sobre cobrança automática
-- [x] Notificações in-app
 
 ## 10. Relatórios Gerenciais
-- [ ] Taxa de ocupação por sala
-- [ ] Faturamento por profissional
-- [ ] Horários mais disputados
-- [ ] Ranking de uso de salas
-- [ ] Exportar relatórios
+- [x] Taxa de ocupação por sala
+- [x] Faturamento por profissional
+- [x] Horários mais disputados
+- [x] Ranking de uso de salas
+- [ ] Exportar relatórios (CSV)
 
-## 11. API REST Pública
-- [ ] Criar endpoints REST documentados
-- [ ] Implementar autenticação via API key
-- [ ] Endpoint para consultar disponibilidade
-- [ ] Endpoint para criar reserva
-- [ ] Endpoint para cancelar reserva
-- [ ] Documentação Swagger/OpenAPI
-
-## 12. Integração com Site On Life
-- [ ] Criar widget embedável (iframe)
-- [ ] Gerar link direto para agendamento
-- [ ] Documentar integração
-
-## 13. Testes e Qualidade
-- [ ] Escrever testes vitest para procedures críticas
-- [ ] Testar fluxo completo de reserva
-- [ ] Testar sistema de créditos
-- [ ] Testar integração Stripe
-- [ ] Validar controle de acesso RBAC
-
-## 14. Design e UX
-- [x] Definir paleta de cores elegante
-- [x] Criar componentes UI consistentes
-- [x] Implementar tema profissional
-- [x] Garantir responsividade mobile
-- [ ] Adicionar micro-interações
-
-## Correções Urgentes
-- [x] Criar página /admin para administradores
-- [x] Adicionar rota /admin no App.tsx
-
-## Funcionalidades Pendentes - Urgente
-- [x] Criar página de gerenciamento de salas (/admin/rooms)
-- [x] Criar formulário de criação/edição de salas
-- [x] Implementar upload de fotos de salas
-- [x] Criar página de gerenciamento de regras de cancelamento
-- [x] Criar página de agendamento/reserva de salas
-- [x] Implementar visualização de agenda com disponibilidade
-- [x] Criar formulário de nova reserva
-- [x] Implementar listagem de reservas do profissional
-- [x] Criar página de detalhes da reserva com cancelamento
-
-## Correção Urgente - Page 2
-- [x] Investigar qual rota está configurada como Page 2 no DashboardLayout
-- [x] Criar página correspondente ou ajustar navegação
-
-## Correção Urgente - Rota /some-path
-- [x] Encontrar e remover referências à rota /some-path
-- [x] Verificar se há outras rotas antigas no código
-
-## Correção Urgente - Erro de Sintaxe
-- [x] Corrigir erro de sintaxe no server/routers.ts linha 457
-- [x] Verificar estrutura do router cancellationRules
-
-## Correção Urgente - Erro de Hooks no BookRoom
-- [x] Corrigir erro "Rendered more hooks than during the previous render" no BookRoom.tsx
-- [x] Garantir que hooks não sejam chamados condicionalmente
-
-## Reestruturação Urgente - Separação de Áreas
-- [x] Criar landing page pública com opções de login separadas (Admin / Profissional)
-- [x] Implementar sistema de cadastro de profissionais
-- [x] Separar completamente área administrativa da área de profissionais
-- [x] Remover botão Admin do menu de profissionais
-- [x] Criar rotas separadas /admin/* e /professional/*
-- [x] Ajustar DashboardLayout para mostrar menus diferentes por perfil
-- [x] Garantir que admin não veja opções de reserva
-- [x] Garantir que profissionais não vejam opções administrativas
-
-## Funcionalidade Urgente - Cadastro de Profissionais
-- [x] Adicionar formulário de cadastro na landing page
-- [x] Criar procedure tRPC para registrar novos profissionais
-- [x] Implementar validação de dados cadastrais (nome, email, telefone, CRP/CRM/CRO)
-- [x] Criar fluxo de cadastro com confirmação
-- [x] Redirecionar para dashboard após cadastro bem-sucedido
-
-## Urgente - Sistema de Autenticação Próprio
-- [x] Adicionar campo de senha no schema do banco de dados
-- [x] Adicionar campo de senha no formulário de cadastro
-- [x] Implementar hash de senha com bcrypt
-- [x] Criar página de login própria (/login) com email e senha
-- [x] Implementar procedure de login que valida email/senha
-- [x] Gerar JWT token próprio após login bem-sucedido
-- [x] Criar middleware de autenticação JWT
-- [x] Substituir OAuth Manus por autenticação própria
-- [x] Atualizar useAuth para usar sistema próprio
-- [ ] Adicionar botão "Esqueci minha senha" (opcional)
-
-## Urgente - Atualizar Senha do Usuário Erika
-- [x] Buscar usuário erika@ no banco de dados
-- [x] Gerar hash da senha 59ek6bj76p
-- [x] Atualizar campo password no banco de dados
-- [x] Testar login com as novas credenciais
-
-## Urgente - Corrigir Erro Após Login
-- [x] Verificar logs do servidor para identificar erro
-- [x] Verificar se cookie auth_token está sendo setado corretamente
-- [x] Verificar se contexto de autenticação está funcionando
-- [x] Corrigir redirecionamento após login
-- [x] Testar fluxo completo de login e acesso ao dashboard
-- [x] Adicionar cookie-parser middleware no servidor Express
-- [x] Validar autenticação JWT funcionando corretamente
-
-## Correção Urgente - Página de Profissionais
-- [x] Criar página /admin/professionals para listar profissionais
-- [x] Adicionar rota /admin/professionals no App.tsx
-- [x] Testar navegação e funcionalidade
-
-## Correção Urgente - Erro setState durante Render
-- [x] Identificar chamada de navegação durante render no Home.tsx linha 66
-- [x] Mover navegação para useEffect
-- [x] Testar correção
-
-## Correção Urgente - Páginas com Erro 404
-- [x] Criar página de edição de salas (/admin/rooms/:id/edit)
-- [x] Adicionar rota de edição no App.tsx
-- [x] Criar página de relatórios (/admin/reports)
-- [x] Adicionar rota de relatórios no App.tsx
-- [x] Testar navegação de todas as páginas
-
-## Correção Urgente - Botão Editar Salas
-- [x] Corrigir link do botão Editar em RoomsManagement.tsx para /admin/rooms/:id/edit
-
-## Nova Funcionalidade - Calendário Interativo
+## 11. Calendário Interativo
 - [x] Instalar react-big-calendar e moment
 - [x] Criar componente Calendar com visualização de reservas
-- [x] Adicionar rota /calendar no App.tsx
-- [x] Adicionar link no menu de navegação
 - [x] Adicionar funcionalidade de criar reserva clicando em slot vazio
-- [x] Adicionar visualização de detalhes ao clicar em reserva existente
 - [x] Adicionar filtro por sala
-- [x] Testar navegação e funcionalidades do calendário
+
+## === NOVAS FUNCIONALIDADES DO PRD ===
+
+## PRD-1: Schema Multi-Tenant e Novas Entidades
+- [x] Adicionar tabela tenants (empresa/prédio)
+- [x] Adicionar campo tenantId em users, rooms, bookings, credits, payments
+- [x] Adicionar tabela roomBlocks (bloqueios de sala: manutenção, reservado gestor)
+- [x] Adicionar campos buffer (bufferBefore, bufferAfter) na tabela rooms
+- [x] Adicionar campo roomType na tabela rooms
+- [x] Adicionar campo minDuration, maxDuration, minAdvanceHours na tabela rooms
+- [x] Atualizar status de bookings para máquina de estados completa
+- [x] Atualizar status de payments
+- [x] Adicionar tabela auditLogs (trilha de auditoria)
+- [x] Adicionar tabela waitlistEntries (lista de espera)
+- [x] Adicionar tabela consentRecords (consentimento LGPD)
+- [x] Adicionar tabela professionalTenants (vínculo profissional-tenant)
+- [x] Adicionar campo publicProfileSlug em users para URL pública do profissional
+- [x] Migrar schema com SQL direto
+
+## PRD-2: Backend Multi-Tenant e Máquina de Estados
+- [x] Criar router tenants (CRUD de tenant, onboarding)
+- [x] Implementar isolamento de dados por tenantId em todas as queries
+- [x] Implementar máquina de estados para reservas
+- [x] Criar procedure para bloqueio manual de sala (manutenção/gestor)
+- [x] Criar procedure para registrar no-show (admin only)
+- [x] Criar procedure para aprovar/recusar/bloquear profissional (admin only)
+- [x] Criar router auditLogs com registro automático de ações críticas
+- [x] Criar procedure para lista de espera com consentimento LGPD
+
+## PRD-3: Checkout Funcional de Créditos
+- [ ] Criar checkout de compra de créditos com Stripe (cartão)
+- [ ] Implementar webhook Stripe para confirmar pagamento
+- [ ] Criar página de retorno do checkout (/credits/success, /credits/cancel)
+
+## PRD-4: Portal Público do Paciente
+- [x] Criar rota pública /p/:slug para perfil do profissional
+- [x] Criar página de perfil público do profissional
+- [x] Criar formulário de lista de espera com campos LGPD
+- [x] Registrar consentimento LGPD ao entrar na lista de espera
+
+## PRD-5: Lembretes Automáticos
+- [x] Implementar job de lembretes 24h antes das reservas
+- [x] Implementar job de lembretes 2h antes das reservas
+- [x] Configurar agendamento periódico (interval a cada 30 min no startup)
+- [x] Deduplicação de lembretes (hasNotificationBeenSent)
+
+## PRD-6: Frontend Atualizado
+- [x] Adicionar bloqueio manual de sala no painel admin (/admin/room-blocks)
+- [x] Adicionar trilha de auditoria no painel admin (/admin/audit)
+- [x] Adicionar configurações da clínica no painel admin (/admin/settings)
+- [x] Adicionar Lista de Espera no menu do profissional (/waitlist)
+- [x] Melhorar branding: logo SISA no sidebar
+- [x] Atualizar menu admin: Bloqueios, Relatórios, Auditoria, Configurações
+- [ ] Exportar relatórios CSV
+- [ ] Mostrar link público do profissional no dashboard
+- [ ] Página de configurações do profissional com slug editável

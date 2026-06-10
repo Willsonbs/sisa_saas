@@ -1,0 +1,9 @@
+{
+  "query": "\nALTER TABLE `bookings` MODIFY COLUMN `status` enum('draft','pending_payment','confirmed','canceled_with_credit','no_show','completed','pending','cancelled') NOT NULL DEFAULT 'draft';\n\nALTER TABLE `payments` MODIFY COLUMN `status` enum('pending','paid','refunded','chargeback','processing','completed','failed') NOT NULL DEFAULT 'pending';\n\nINSERT INTO `tenants` (`name`, `slug`, `email`, `plan`, `isActive`, `cancellationWindowHours`, `lateArrivalToleranceMinutes`)\nVALUES ('On Life Clínica', 'onlife', 'erika@clinicadraerikagoncalves.com', 'pro', true, 12, 15)\nON DUPLICATE KEY UPDATE `name` = `name`;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2K2nZhchkWvioe9.44e5ea8f5c60 --database BKg3JWXSVAysuyURANpvoX --execute \nALTER TABLE `bookings` MODIFY COLUMN `status` enum('draft','pending_payment','confirmed','canceled_with_credit','no_show','completed','pending','cancelled') NOT NULL DEFAULT 'draft';\n\nALTER TABLE `payments` MODIFY COLUMN `status` enum('pending','paid','refunded','chargeback','processing','completed','failed') NOT NULL DEFAULT 'pending';\n\nINSERT INTO `tenants` (`name`, `slug`, `email`, `plan`, `isActive`, `cancellationWindowHours`, `lateArrivalToleranceMinutes`)\nVALUES ('On Life Clínica', 'onlife', 'erika@clinicadraerikagoncalves.com', 'pro', true, 12, 15)\nON DUPLICATE KEY UPDATE `name` = `name`;\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 692
+}

@@ -21,7 +21,8 @@ import {
 } from "@/components/ui/sidebar";
 // import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, Calendar, CalendarDays, CreditCard, Building2, Settings } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, Calendar, CalendarDays, CreditCard, Building2, Settings, Lock, Shield, ClipboardList, FileBarChart2, Bell } from "lucide-react";
+import { trpc } from "@/lib/trpc";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -32,8 +33,12 @@ const getMenuItems = (role: string) => {
     return [
       { icon: LayoutDashboard, label: "Dashboard", path: "/admin" },
       { icon: Building2, label: "Gerenciar Salas", path: "/admin/rooms" },
+      { icon: Lock, label: "Bloqueios de Sala", path: "/admin/room-blocks" },
       { icon: Settings, label: "Regras de Cancelamento", path: "/admin/cancellation-rules" },
       { icon: Users, label: "Profissionais", path: "/admin/professionals" },
+      { icon: FileBarChart2, label: "Relatórios", path: "/admin/reports" },
+      { icon: Shield, label: "Trilha de Auditoria", path: "/admin/audit" },
+      { icon: Settings, label: "Configurações", path: "/admin/settings" },
     ];
   }
   
@@ -44,7 +49,7 @@ const getMenuItems = (role: string) => {
     { icon: Calendar, label: "Minhas Reservas", path: "/bookings" },
     { icon: CalendarDays, label: "Calendário", path: "/calendar" },
     { icon: CreditCard, label: "Créditos", path: "/credits" },
-    { icon: Settings, label: "Configurações", path: "/settings" },
+    { icon: ClipboardList, label: "Lista de Espera", path: "/waitlist" },
   ];
 };
 
@@ -187,8 +192,11 @@ function DashboardLayoutContent({
               </button>
               {!isCollapsed ? (
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-semibold tracking-tight truncate">
-                    Navigation
+                  <div className="w-7 h-7 bg-blue-600 rounded-md flex items-center justify-center shrink-0">
+                    <Building2 className="h-4 w-4 text-white" />
+                  </div>
+                  <span className="font-bold tracking-tight truncate text-blue-700">
+                    SISA
                   </span>
                 </div>
               ) : null}

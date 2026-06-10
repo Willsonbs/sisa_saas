@@ -1,0 +1,18 @@
+{
+  "query": "SHOW COLUMNS FROM users LIKE '%tenant%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2K2nZhchkWvioe9.44e5ea8f5c60 --database BKg3JWXSVAysuyURANpvoX --execute SHOW COLUMNS FROM users LIKE '%tenant%';",
+  "rows": [
+    {
+      "Field": "tenantId",
+      "Type": "int",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\ntenantId\tint\tYES\t\tNULL\t\n",
+  "stderr": "",
+  "execution_time_ms": 277
+}

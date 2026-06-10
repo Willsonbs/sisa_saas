@@ -18,6 +18,11 @@ import Reports from "./pages/admin/Reports";
 import BookRoom from "./pages/professional/BookRoom";
 import Bookings from "./pages/professional/Bookings";
 import CalendarPage from "./pages/professional/Calendar";
+import PatientPortal from "./pages/PatientPortal";
+import WaitlistPage from "./pages/professional/Waitlist";
+import TenantSettings from "./pages/admin/TenantSettings";
+import RoomBlocks from "./pages/admin/RoomBlocks";
+import AuditLogs from "./pages/admin/AuditLogs";
 
 function Router() {
   return (
@@ -42,6 +47,15 @@ function Router() {
       <Route path="/rooms/:id/book" component={BookRoom} />
       <Route path="/bookings" component={Bookings} />
       <Route path="/calendar" component={CalendarPage} />
+      <Route path="/waitlist" component={WaitlistPage} />
+      
+      {/* Admin Extended Routes */}
+      <Route path="/admin/settings" component={TenantSettings} />
+      <Route path="/admin/room-blocks" component={RoomBlocks} />
+      <Route path="/admin/audit" component={AuditLogs} />
+      
+      {/* Public Patient Portal */}
+      <Route path="/p/:slug" component={PatientPortal} />
       
       {/* Fallback */}
       <Route path="/404" component={NotFound} />
