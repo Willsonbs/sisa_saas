@@ -3,14 +3,39 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { CreditCard, TrendingUp, Check, Sparkles } from "lucide-react";
+import { CreditCard, TrendingUp, Check, Sparkles, CheckCircle2, XCircle } from "lucide-react";
+import { useEffect } from "react";
+import { useSearch } from "wouter";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
 
 export default function CreditsPage() {
-  const { data: balance, isLoading: loadingBalance } = trpc.credits.balance.useQuery();
-  const { data: history, isLoading: loadingHistory } = trpc.credits.history.useQuery({ limit: 10 });
+  const search = useSearch();
+  const params = new URLSearchParams(search);
+  const paymentStatus = params.get("payment");
+
+  const { data: balance, isLoading: loadingBalance, refetch: refetchBalance } = trpc.credits.balance.useQuery();
+  const { data: history, isLoading: loadingHistory, refetch: refetchHistory } = trpc.credits.history.useQuery({ limit: 10 });
   const { data: packages } = trpc.credits.packages.useQuery();
+
+  const checkoutMutation = trpc.payments.createCheckout.useMutation({
+    onSuccess: (data: any) => {
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    },
+    onError: (err: any) => toast.error(err.message || "Erro ao criar checkout"),
+  });
+
+  useEffect(() => {
+    if (paymentStatus === "success") {
+      toast.success("Pagamento confirmado! Seus créditos serão adicionados em instantes.");
+      refetchBalance();
+      refetchHistory();
+    } else if (paymentStatus === "cancelled") {
+      toast.info("Pagamento cancelado.");
+    }
+  }, [paymentStatus]);
 
   return (
     <DashboardLayout>
@@ -84,11 +109,10 @@ export default function CreditsPage() {
                   <Button
                     className="w-full"
                     variant={pkg.popular ? 'default' : 'outline'}
-                    onClick={() => {
-                      toast.info('Integração Stripe em desenvolvimento');
-                    }}
+                    disabled={checkoutMutation.isPending}
+                    onClick={() => checkoutMutation.mutate({ packageId: pkg.id })}
                   >
-                    Comprar Agora
+                    {checkoutMutation.isPending ? "Redirecionando..." : "Comprar Agora"}
                   </Button>
                 </CardContent>
               </Card>

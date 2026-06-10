@@ -32,10 +32,10 @@
 - [x] Criar extrato de movimentação de créditos
 
 ## 6. Sistema de Pagamentos
-- [ ] Integrar checkout funcional para pagamento com cartão (Stripe)
-- [ ] Implementar pagamento via PIX
-- [ ] Criar checkout seguro
-- [ ] Registrar histórico de pagamentos
+- [x] Integrar checkout funcional para pagamento com cartão (Stripe)
+- [x] Criar checkout seguro (Stripe Checkout)
+- [x] Registrar histórico de pagamentos
+- [ ] Implementar pagamento via PIX (requer conta Stripe BR ativa)
 
 ## 7. Cancelamentos com Regras
 - [x] Implementar regras configuráveis de cancelamento
@@ -58,7 +58,7 @@
 - [x] Faturamento por profissional
 - [x] Horários mais disputados
 - [x] Ranking de uso de salas
-- [ ] Exportar relatórios (CSV)
+- [x] Exportar relatórios (CSV)
 
 ## 11. Calendário Interativo
 - [x] Instalar react-big-calendar e moment
@@ -95,9 +95,9 @@
 - [x] Criar procedure para lista de espera com consentimento LGPD
 
 ## PRD-3: Checkout Funcional de Créditos
-- [ ] Criar checkout de compra de créditos com Stripe (cartão)
-- [ ] Implementar webhook Stripe para confirmar pagamento
-- [ ] Criar página de retorno do checkout (/credits/success, /credits/cancel)
+- [x] Criar checkout de compra de créditos com Stripe (cartão)
+- [x] Implementar webhook Stripe para confirmar pagamento
+- [x] Criar página de retorno do checkout (parâmetro ?payment=success/cancelled na página de créditos)
 
 ## PRD-4: Portal Público do Paciente
 - [x] Criar rota pública /p/:slug para perfil do profissional

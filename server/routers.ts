@@ -606,6 +606,7 @@ export const appRouter = router({
           metadata: JSON.stringify({ packageId: pkg.id, credits: pkg.credits }),
         });
         
+        const appUrl = process.env.VITE_APP_URL || 'http://localhost:3000';
         const session = await stripe.checkout.sessions.create({
           payment_method_types: ['card'],
           line_items: [{
@@ -620,15 +621,24 @@ export const appRouter = router({
             quantity: 1,
           }],
           mode: 'payment',
-          success_url: `${process.env.VITE_APP_URL || 'http://localhost:3000'}/dashboard/credits?payment=success`,
-          cancel_url: `${process.env.VITE_APP_URL || 'http://localhost:3000'}/dashboard/credits?payment=cancelled`,
+          success_url: `${appUrl}/credits?payment=success`,
+          cancel_url: `${appUrl}/credits?payment=cancelled`,
           metadata: {
             professionalId: ctx.user.id.toString(),
             tenantId: tenantId.toString(),
             packageId: pkg.id,
             credits: pkg.credits.toString(),
+            paymentRecordId: (paymentResult as any)?.insertId?.toString() || '',
           },
         });
+
+        // Update payment record with Stripe session ID for tracking
+        const insertResult = paymentResult as any;
+        if (insertResult?.insertId) {
+          await db.updatePayment(insertResult.insertId, {
+            stripePaymentIntentId: session.id, // store session ID for now, will be updated with payment_intent on webhook
+          });
+        }
         
         return { url: session.url, sessionId: session.id };
       }),
