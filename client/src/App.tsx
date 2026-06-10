@@ -23,6 +23,7 @@ import WaitlistPage from "./pages/professional/Waitlist";
 import TenantSettings from "./pages/admin/TenantSettings";
 import RoomBlocks from "./pages/admin/RoomBlocks";
 import AuditLogs from "./pages/admin/AuditLogs";
+import ProfessionalSettings from "./pages/professional/Settings";
 
 function Router() {
   return (
@@ -53,6 +54,9 @@ function Router() {
       <Route path="/admin/settings" component={TenantSettings} />
       <Route path="/admin/room-blocks" component={RoomBlocks} />
       <Route path="/admin/audit" component={AuditLogs} />
+      
+      {/* Professional Settings */}
+      <Route path="/settings" component={ProfessionalSettings} />
       
       {/* Public Patient Portal */}
       <Route path="/p/:slug" component={PatientPortal} />

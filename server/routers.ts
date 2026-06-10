@@ -141,10 +141,26 @@ export const appRouter = router({
         registryType: z.string().optional(),
         cpf: z.string().optional(),
         address: z.string().optional(),
+        specialty: z.string().optional(),
+        bio: z.string().optional(),
+        publicProfileSlug: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
+        if (input.publicProfileSlug) {
+          const existing = await db.getUserBySlug(input.publicProfileSlug);
+          if (existing && existing.id !== ctx.user.id) {
+            throw new TRPCError({ code: 'CONFLICT', message: 'Este slug já está em uso por outro profissional.' });
+          }
+        }
         await db.updateUserProfile(ctx.user.id, input);
         return { success: true };
+      }),
+    checkSlug: protectedProcedure
+      .input(z.object({ slug: z.string().min(3) }))
+      .mutation(async ({ ctx, input }) => {
+        const existing = await db.getUserBySlug(input.slug);
+        const available = !existing || existing.id === ctx.user.id;
+        return { available };
       }),
   }),
 

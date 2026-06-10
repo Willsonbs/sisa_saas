@@ -50,6 +50,7 @@ const getMenuItems = (role: string) => {
     { icon: CalendarDays, label: "Calendário", path: "/calendar" },
     { icon: CreditCard, label: "Créditos", path: "/credits" },
     { icon: ClipboardList, label: "Lista de Espera", path: "/waitlist" },
+    { icon: Settings, label: "Configurações", path: "/settings" },
   ];
 };
 

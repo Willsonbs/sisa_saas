@@ -2,21 +2,95 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
-import { BarChart3, Calendar, DollarSign, TrendingUp, Users } from "lucide-react";
+import { BarChart3, Calendar, DollarSign, TrendingUp, Users, Download } from "lucide-react";
+import { toast } from "sonner";
 
 export default function Reports() {
   const { data: stats } = trpc.admin.stats.useQuery();
   const { data: rooms } = trpc.rooms.list.useQuery();
   const { data: bookings } = trpc.bookings.list.useQuery();
 
+  const escapeCSV = (val: any) => {
+    const str = String(val ?? "");
+    if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const exportCSV = () => {
+    if (!bookings || bookings.length === 0) {
+      toast.error("Nenhuma reserva para exportar");
+      return;
+    }
+
+    // Sheet 1: Reservas detalhadas
+    const bookingHeaders = ["ID", "Sala ID", "Profissional ID", "Paciente", "Início", "Fim", "Status", "Preço (créditos)"];
+    const bookingRows = bookings.map(b => [
+      b.id,
+      b.roomId,
+      b.professionalId,
+      b.patientName || "",
+      new Date(b.startTime).toLocaleString("pt-BR"),
+      new Date(b.endTime).toLocaleString("pt-BR"),
+      b.status,
+      b.totalPrice,
+    ]);
+
+    // Sheet 2: Ocupação por sala
+    const occupationHeaders = ["Sala", "Total Reservas Confirmadas", "Taxa de Ocupação (%)"];
+    const occupationRows = (rooms || []).map(room => {
+      const roomBookings = bookings.filter(b => b.roomId === room.id && b.status === "confirmed");
+      const rate = Math.min(100, (roomBookings.length / 30) * 100);
+      return [room.name, roomBookings.length, rate.toFixed(1)];
+    });
+
+    // Sheet 3: Distribuição por período
+    const periodHeaders = ["Período", "Total Reservas"];
+    const periodRows = [
+      ["Manhã (08-12h)", bookings.filter(b => { const h = new Date(b.startTime).getHours(); return h >= 8 && h < 12; }).length],
+      ["Tarde (12-18h)", bookings.filter(b => { const h = new Date(b.startTime).getHours(); return h >= 12 && h < 18; }).length],
+      ["Noite (18-22h)", bookings.filter(b => { const h = new Date(b.startTime).getHours(); return h >= 18 && h < 22; }).length],
+    ];
+
+    const buildSection = (title: string, headers: string[], rows: any[][]) => [
+      [title],
+      headers.map(escapeCSV).join(","),
+      ...rows.map(r => r.map(escapeCSV).join(",")),
+      "",
+    ];
+
+    const lines = [
+      ...buildSection("RESERVAS DETALHADAS", bookingHeaders, bookingRows),
+      ...buildSection("OCUPA\u00c7\u00c3O POR SALA", occupationHeaders, occupationRows),
+      ...buildSection("DISTRIBUI\u00c7\u00c3O POR PER\u00cdODO", periodHeaders, periodRows),
+    ];
+
+    const csvContent = lines.join("\n");
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `relatorio_sisa_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success("Relatório exportado com sucesso!");
+  };
+
   return (
     <DashboardLayout>
       <div className="container py-8 space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold">Relatórios Gerenciais</h1>
-          <p className="text-muted-foreground mt-2">
-            Análise de desempenho e estatísticas do sistema
-          </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Relatórios Gerenciais</h1>
+            <p className="text-muted-foreground mt-2">
+              Análise de desempenho e estatísticas do sistema
+            </p>
+          </div>
+          <Button onClick={exportCSV} variant="outline" className="flex items-center gap-2">
+            <Download className="h-4 w-4" />
+            Exportar CSV
+          </Button>
         </div>
 
         {/* Estatísticas Gerais */}

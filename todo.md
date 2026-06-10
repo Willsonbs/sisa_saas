@@ -118,6 +118,6 @@
 - [x] Adicionar Lista de Espera no menu do profissional (/waitlist)
 - [x] Melhorar branding: logo SISA no sidebar
 - [x] Atualizar menu admin: Bloqueios, Relatórios, Auditoria, Configurações
-- [ ] Exportar relatórios CSV
-- [ ] Mostrar link público do profissional no dashboard
-- [ ] Página de configurações do profissional com slug editável
+- [x] Exportar relatórios CSV
+- [x] Mostrar link público do profissional no dashboard
+- [x] Página de configurações do profissional com slug editável

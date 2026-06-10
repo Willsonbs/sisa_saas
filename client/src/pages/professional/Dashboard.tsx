@@ -2,14 +2,27 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import { Calendar, CreditCard, Clock, Plus } from "lucide-react";
+import { Calendar, CreditCard, Clock, Plus, Link as LinkIcon, Copy, ExternalLink } from "lucide-react";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
 import { Link } from "wouter";
 
 export default function ProfessionalDashboard() {
+  const { user } = useAuth();
   const { data: balance, isLoading: loadingBalance } = trpc.credits.balance.useQuery();
   const { data: upcomingBookings, isLoading: loadingBookings } = trpc.bookings.upcoming.useQuery({ limit: 5 });
   const { data: unreadNotifications } = trpc.notifications.unread.useQuery();
+
+  const portalUrl = (user as any)?.publicProfileSlug
+    ? `${window.location.origin}/p/${(user as any).publicProfileSlug}`
+    : null;
+
+  const copyPortalLink = () => {
+    if (!portalUrl) return;
+    navigator.clipboard.writeText(portalUrl);
+    toast.success("Link copiado!");
+  };
 
   return (
     <DashboardLayout>
@@ -76,6 +89,48 @@ export default function ProfessionalDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Public Profile Link */}
+        {portalUrl ? (
+          <Card className="bg-blue-50 border-blue-200">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center gap-3">
+                <LinkIcon className="h-5 w-5 text-blue-600 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-blue-900 text-sm">Seu portal público está ativo</p>
+                  <p className="text-blue-700 text-sm truncate">{portalUrl}</p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <Button size="sm" variant="outline" onClick={copyPortalLink} className="border-blue-300 text-blue-700 hover:bg-blue-100">
+                    <Copy className="h-3.5 w-3.5 mr-1" />
+                    Copiar
+                  </Button>
+                  <Button size="sm" variant="outline" asChild className="border-blue-300 text-blue-700 hover:bg-blue-100">
+                    <a href={portalUrl} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="h-3.5 w-3.5 mr-1" />
+                      Abrir
+                    </a>
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="bg-amber-50 border-amber-200">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center gap-3">
+                <LinkIcon className="h-5 w-5 text-amber-600 shrink-0" />
+                <div className="flex-1">
+                  <p className="font-medium text-amber-900 text-sm">Configure seu portal público</p>
+                  <p className="text-amber-700 text-xs mt-0.5">Crie um link personalizado para seus pacientes entrarem na lista de espera.</p>
+                </div>
+                <Button size="sm" variant="outline" asChild className="border-amber-300 text-amber-700 hover:bg-amber-100 shrink-0">
+                  <Link href="/settings">Configurar</Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Quick Actions */}
         <Card>
