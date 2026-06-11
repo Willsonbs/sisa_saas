@@ -430,7 +430,116 @@ export const appRouter = router({
         
         return { success: true, totalPrice, newBalance };
       }),
-    
+
+    // Create booking and pay directly via Stripe (no credits needed)
+    createWithPayment: professionalProcedure
+      .input(z.object({
+        roomId: z.number(),
+        patientName: z.string(),
+        patientPhone: z.string().optional(),
+        startTime: z.date(),
+        endTime: z.date(),
+        receptionNotes: z.string().optional(),
+        privateNotes: z.string().optional(),
+        paymentMethod: z.enum(['card', 'pix']).optional().default('card'),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const room = await db.getRoomById(input.roomId);
+        if (!room || !room.isActive) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Room not available' });
+        }
+
+        const hasConflict = await db.checkBookingConflict(input.roomId, input.startTime, input.endTime);
+        if (hasConflict) {
+          throw new TRPCError({ code: 'CONFLICT', message: 'Time slot already booked' });
+        }
+
+        const hasBlockConflict = await db.checkRoomBlockConflict(input.roomId, input.startTime, input.endTime);
+        if (hasBlockConflict) {
+          throw new TRPCError({ code: 'CONFLICT', message: 'Room is blocked during this time' });
+        }
+
+        const durationMs = input.endTime.getTime() - input.startTime.getTime();
+        const durationHours = durationMs / (1000 * 60 * 60);
+        const totalPrice = Math.ceil(durationHours * room.pricePerHour);
+        const tenantId = room.tenantId || 1;
+
+        const bufferStartTime = new Date(input.startTime.getTime() - (room.bufferBefore || 0) * 60000);
+        const bufferEndTime = new Date(input.endTime.getTime() + (room.bufferAfter || 0) * 60000);
+
+        // Create booking with 'pending_payment' status
+        const bookingResult = await db.createBooking({
+          roomId: input.roomId,
+          tenantId,
+          professionalId: ctx.user.id,
+          patientName: input.patientName,
+          patientPhone: input.patientPhone || null,
+          startTime: input.startTime,
+          endTime: input.endTime,
+          bufferStartTime,
+          bufferEndTime,
+          totalPrice,
+          status: 'pending_payment',
+          receptionNotes: input.receptionNotes || null,
+          privateNotes: input.privateNotes || null,
+        });
+
+        const bookingId = (bookingResult as any)?.insertId;
+
+        // Create payment record
+        const paymentResult = await db.createPayment({
+          professionalId: ctx.user.id,
+          tenantId,
+          amount: totalPrice,
+          method: 'credit_card',
+          status: 'pending',
+          metadata: JSON.stringify({ bookingId, type: 'booking_payment' }),
+        });
+
+        const stripe = await import('stripe').then(m => new m.default(process.env.STRIPE_SECRET_KEY!));
+        const appUrl = process.env.VITE_APP_URL || 'http://localhost:3000';
+        const paymentMethods: ('card' | 'pix')[] = input.paymentMethod === 'pix' ? ['pix'] : ['card'];
+
+        const createSession = async (methods: ('card' | 'pix')[]) =>
+          stripe.checkout.sessions.create({
+            payment_method_types: methods,
+            line_items: [{
+              price_data: {
+                currency: 'brl',
+                product_data: {
+                  name: `Reserva: ${room.name}`,
+                  description: `${input.startTime.toLocaleDateString('pt-BR')} ${input.startTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} - ${input.endTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`,
+                },
+                unit_amount: totalPrice,
+              },
+              quantity: 1,
+            }],
+            mode: 'payment',
+            success_url: `${appUrl}/bookings?payment=success`,
+            cancel_url: `${appUrl}/rooms/${input.roomId}/book?payment=cancelled`,
+            metadata: {
+              professionalId: ctx.user.id.toString(),
+              tenantId: tenantId.toString(),
+              bookingId: bookingId?.toString() || '',
+              paymentRecordId: (paymentResult as any)?.insertId?.toString() || '',
+              type: 'booking_payment',
+            },
+          });
+
+        let session;
+        try {
+          session = await createSession(paymentMethods);
+        } catch (err: any) {
+          if (input.paymentMethod === 'pix' && err?.message?.includes('payment_method_types')) {
+            session = await createSession(['card']);
+          } else {
+            throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: err.message || 'Erro ao criar checkout' });
+          }
+        }
+
+        return { url: session.url, sessionId: session.id, bookingId, totalPrice };
+      }),
+
     cancel: professionalProcedure
       .input(z.object({
         id: z.number(),

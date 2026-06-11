@@ -18,12 +18,13 @@ export default function RoomsManagement() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingRoom, setEditingRoom] = useState<any>(null);
   
-  const { data: rooms, isLoading, refetch } = trpc.rooms.list.useQuery({ includeInactive: true });
+  const utils = trpc.useUtils();
+  const { data: rooms, isLoading } = trpc.rooms.list.useQuery({ includeInactive: true });
   const createMutation = trpc.rooms.create.useMutation({
     onSuccess: () => {
       toast.success("Sala criada com sucesso!");
       setIsCreateOpen(false);
-      refetch();
+      utils.rooms.list.invalidate();
     },
     onError: (error) => {
       toast.error(error.message);
@@ -34,7 +35,7 @@ export default function RoomsManagement() {
     onSuccess: () => {
       toast.success("Sala atualizada com sucesso!");
       setEditingRoom(null);
-      refetch();
+      utils.rooms.list.invalidate();
     },
     onError: (error) => {
       toast.error(error.message);
@@ -42,12 +43,29 @@ export default function RoomsManagement() {
   });
 
   const deleteMutation = trpc.rooms.delete.useMutation({
+    onMutate: async ({ id }) => {
+      // Cancelar queries em andamento
+      await utils.rooms.list.cancel();
+      // Snapshot do estado anterior
+      const prev = utils.rooms.list.getData({ includeInactive: true });
+      // Update otimista: remove a sala da lista imediatamente
+      utils.rooms.list.setData({ includeInactive: true }, (old) =>
+        old ? old.filter((r) => r.id !== id) : old
+      );
+      return { prev };
+    },
     onSuccess: () => {
       toast.success("Sala removida com sucesso!");
-      refetch();
     },
-    onError: (error) => {
+    onError: (error, _vars, context) => {
+      // Reverter em caso de erro
+      if (context?.prev) {
+        utils.rooms.list.setData({ includeInactive: true }, context.prev);
+      }
       toast.error(error.message);
+    },
+    onSettled: () => {
+      utils.rooms.list.invalidate();
     },
   });
 

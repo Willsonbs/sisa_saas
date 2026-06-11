@@ -52,64 +52,74 @@ async function startServer() {
 
       if (event.type === 'checkout.session.completed') {
         const session = event.data.object as any;
-        const { professionalId, packageId, credits, tenantId } = session.metadata || {};
+        const { professionalId, packageId, credits, tenantId, bookingId, type: paymentType } = session.metadata || {};
 
-        if (professionalId && credits) {
-          const db = await import('../db');
+        const db = await import('../db');
+        const profId = parseInt(professionalId, 10);
+        const tenId = parseInt(tenantId || '1', 10);
+        const { payments: paymentsTable, bookings: bookingsTable } = await import('../../drizzle/schema');
+        const { eq, and } = await import('drizzle-orm');
+        const dbConn = await db.getDb();
+
+        if (!dbConn || !profId) {
+          res.json({ received: true });
+          return;
+        }
+
+        // Idempotency check
+        const paymentIntentId = session.payment_intent || session.id;
+        const existingPaid = await dbConn.select()
+          .from(paymentsTable)
+          .where(and(
+            eq(paymentsTable.professionalId, profId),
+            eq(paymentsTable.status, 'paid'),
+            eq(paymentsTable.stripePaymentIntentId, paymentIntentId)
+          ))
+          .limit(1);
+
+        if (existingPaid.length > 0) {
+          console.log(`[Stripe] Already processed session ${session.id}, skipping`);
+          res.json({ received: true });
+          return;
+        }
+
+        if (paymentType === 'booking_payment' && bookingId) {
+          // Direct booking payment: confirm the booking
+          const bookId = parseInt(bookingId, 10);
+          await dbConn.update(bookingsTable)
+            .set({ status: 'confirmed' })
+            .where(eq(bookingsTable.id, bookId));
+
+          await dbConn.update(paymentsTable)
+            .set({ status: 'paid', stripePaymentIntentId: paymentIntentId })
+            .where(and(
+              eq(paymentsTable.professionalId, profId),
+              eq(paymentsTable.status, 'pending')
+            ));
+
+          console.log(`[Stripe] Booking ${bookId} confirmed via direct payment for professional ${profId}`);
+        } else if (credits) {
+          // Credit package purchase
           const creditsNum = parseInt(credits, 10);
-          const profId = parseInt(professionalId, 10);
-          const tenId = parseInt(tenantId || '1', 10);
+          const currentBalance = await db.getCreditBalance(profId);
 
-          // Idempotency: check if we already processed this session
-          const { payments: paymentsTable } = await import('../../drizzle/schema');
-          const { eq, and } = await import('drizzle-orm');
-          const dbConn = await db.getDb();
+          await db.addCredit({
+            professionalId: profId,
+            tenantId: tenId,
+            amount: creditsNum,
+            type: 'purchase',
+            description: `Compra de pacote via Stripe: ${packageId || 'N/A'}`,
+            balanceAfter: currentBalance + creditsNum,
+          });
 
-          if (dbConn) {
-            // Find pending payment for this professional with matching metadata
-            const existingPaid = await dbConn.select()
-              .from(paymentsTable)
-              .where(and(
-                eq(paymentsTable.professionalId, profId),
-                eq(paymentsTable.status, 'paid'),
-                eq(paymentsTable.stripePaymentIntentId, session.payment_intent || session.id)
-              ))
-              .limit(1);
+          await dbConn.update(paymentsTable)
+            .set({ status: 'paid', stripePaymentIntentId: paymentIntentId })
+            .where(and(
+              eq(paymentsTable.professionalId, profId),
+              eq(paymentsTable.status, 'pending')
+            ));
 
-            if (existingPaid.length > 0) {
-              console.log(`[Stripe] Already processed session ${session.id}, skipping`);
-              res.json({ received: true });
-              return;
-            }
-
-            // Get current balance
-            const currentBalance = await db.getCreditBalance(profId);
-
-            // Add credits to professional
-            await db.addCredit({
-              professionalId: profId,
-              tenantId: tenId,
-              amount: creditsNum,
-              type: 'purchase',
-              description: `Compra de pacote via Stripe: ${packageId || 'N/A'}`,
-              balanceAfter: currentBalance + creditsNum,
-            });
-
-            // Update payment record to paid status
-            // Try to find by stripePaymentIntentId first, then by metadata match
-            const paymentIntentId = session.payment_intent || session.id;
-            const updateResult = await dbConn.update(paymentsTable)
-              .set({
-                status: 'paid',
-                stripePaymentIntentId: paymentIntentId,
-              })
-              .where(and(
-                eq(paymentsTable.professionalId, profId),
-                eq(paymentsTable.status, 'pending')
-              ));
-
-            console.log(`[Stripe] Credits added: ${creditsNum} to professional ${profId}, payment updated`);
-          }
+          console.log(`[Stripe] Credits added: ${creditsNum} to professional ${profId}`);
         }
       }
 

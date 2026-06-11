@@ -138,6 +138,13 @@
 - [x] Redesenhar landing page (Home.tsx) com layout editorial
 - [x] Redesenhar DashboardLayout com nova estética
 
+## Correções e Melhorias - Sprint 2
+- [x] Corrigir botão de remover salas (update otimista: sala some da lista imediatamente)
+- [x] Adicionar opção de pagamento direto via Stripe no fluxo de reserva (sem necessidade de créditos)
+- [x] Atualizar webhook Stripe para confirmar reservas pagas diretamente
+- [x] Adicionar R$ 500,00 de créditos de teste para willsonbs@gmail.com
+- [x] Adicionar R$ 500,00 de créditos de teste para teste@sisa.com
+
 ## Correção do Sistema de Login e Cadastro
 - [x] Corrigir useAuth hook para redirecionar para /login em vez do OAuth Manus
 - [x] Corrigir CTAs "Entrar na rede" e "Já tenho conta" na landing page para usar /login
