@@ -137,3 +137,11 @@
 - [x] Atualizar tipografia: fonte sans-serif grande e limpa (DM Sans via Google Fonts)
 - [x] Redesenhar landing page (Home.tsx) com layout editorial
 - [x] Redesenhar DashboardLayout com nova estética
+
+## Correção do Sistema de Login e Cadastro
+- [x] Corrigir useAuth hook para redirecionar para /login em vez do OAuth Manus
+- [x] Corrigir CTAs "Entrar na rede" e "Já tenho conta" na landing page para usar /login
+- [x] Melhorar página de login com credenciais de demonstração e botão "mostrar senha"
+- [x] Criar usuário admin@sisa.com com senha admin123 no banco de dados
+- [x] Corrigir senha do profissional willsonbs@gmail.com para admin123
+- [x] Testar fluxo completo: login admin, login profissional, cadastro novo profissional

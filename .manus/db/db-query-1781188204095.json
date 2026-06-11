@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE users SET password = '$2b$10$m6ca2IhtvWq5Klcw9aTBCeF9jJz6aTSA/Xevpjnx3W6QvwX1.kOpm' WHERE email = 'admin@sisa.com';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2K2nZhchkWvioe9.44e5ea8f5c60 --database BKg3JWXSVAysuyURANpvoX --execute UPDATE users SET password = '$2b$10$m6ca2IhtvWq5Klcw9aTBCeF9jJz6aTSA/Xevpjnx3W6QvwX1.kOpm' WHERE email = 'admin@sisa.com';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 277
+}

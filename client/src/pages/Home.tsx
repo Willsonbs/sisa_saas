@@ -4,7 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { getLoginUrl } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { ArrowRight, Circle, Calendar, CreditCard, Shield, Bell, TrendingUp, Zap, Building2, UserPlus } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -113,10 +112,10 @@ export default function Home() {
               Ir para o painel →
             </Link>
           ) : (
-            <a href={getLoginUrl()}
+            <Link href="/login"
               className="text-sm underline underline-offset-4 text-[#7C5C4A] hover:text-[#5A3F30] transition-colors">
               Entrar na rede
-            </a>
+            </Link>
           )}
         </div>
       </nav>
@@ -156,11 +155,11 @@ export default function Home() {
                 <Circle className="h-2 w-2 fill-current" />
                 Começar agora
               </button>
-              <a href={getLoginUrl()}
+              <Link href="/login"
                 className="flex items-center gap-2 border border-white/30 text-white rounded-full px-6 py-3 text-sm font-medium hover:border-white/60 transition-colors">
                 Já tenho conta
                 <ArrowRight className="h-4 w-4" />
-              </a>
+              </Link>
             </div>
           </div>
         </div>
@@ -337,10 +336,10 @@ export default function Home() {
                   <Circle className="h-2 w-2 fill-current" />
                   Criar conta gratuita
                 </button>
-                <a href={getLoginUrl()}
+                <Link href="/login"
                   className="flex items-center gap-2 border border-[#3D3D2E] text-[#3D3D2E] rounded-full px-6 py-3 text-sm font-medium hover:bg-[#3D3D2E] hover:text-white transition-colors">
                   Já tenho conta
-                </a>
+                </Link>
               </>
             )}
           </div>
