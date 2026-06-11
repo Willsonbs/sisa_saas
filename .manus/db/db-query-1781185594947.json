@@ -1,0 +1,24 @@
+{
+  "query": "SELECT * FROM tenants LIMIT 5; INSERT IGNORE INTO tenants (id, name, slug, email, phone, plan, isActive, cancellationWindowHours, lateArrivalToleranceMinutes) VALUES (1, 'On Life Clínica', 'on-life-clinica', 'erika@clinicadraerikagoncalves.com', '(11) 99999-9999', 'pro', 1, 12, 15);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2K2nZhchkWvioe9.44e5ea8f5c60 --database BKg3JWXSVAysuyURANpvoX --execute SELECT * FROM tenants LIMIT 5; INSERT IGNORE INTO tenants (id, name, slug, email, phone, plan, isActive, cancellationWindowHours, lateArrivalToleranceMinutes) VALUES (1, 'On Life Clínica', 'on-life-clinica', 'erika@clinicadraerikagoncalves.com', '(11) 99999-9999', 'pro', 1, 12, 15);",
+  "rows": [
+    {
+      "id": "1",
+      "name": "On Life Clínica",
+      "slug": "onlife",
+      "email": "erika@clinicadraerikagoncalves.com",
+      "phone": "",
+      "address": "",
+      "plan": "pro",
+      "isActive": "1",
+      "cancellationWindowHours": "12",
+      "lateArrivalToleranceMinutes": "15",
+      "createdAt": "2026-06-10 21:37:26",
+      "updatedAt": "2026-06-11 13:44:38"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tslug\temail\tphone\taddress\tplan\tisActive\tcancellationWindowHours\tlateArrivalToleranceMinutes\tcreatedAt\tupdatedAt\n1\tOn Life Clínica\tonlife\terika@clinicadraerikagoncalves.com\t\t\tpro\t1\t12\t15\t2026-06-10 21:37:26\t2026-06-11 13:44:38\n",
+  "stderr": "",
+  "execution_time_ms": 279
+}

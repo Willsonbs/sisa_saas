@@ -35,7 +35,7 @@ export default function EditRoom() {
         name: room.name,
         description: room.description || "",
         capacity: room.capacity,
-        equipment: room.equipment || "",
+        equipment: Array.isArray(room.equipment) ? room.equipment.join(', ') : (room.equipment || ""),
         pricePerHour: room.pricePerHour,
         pricePerHalfDay: room.pricePerHalfDay || 0,
         pricePerDay: room.pricePerDay || 0,

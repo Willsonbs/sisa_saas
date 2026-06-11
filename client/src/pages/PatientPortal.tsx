@@ -32,7 +32,7 @@ export default function PatientPortal() {
 
   const { data: professional, isLoading, error } = trpc.portal.getProfessionalBySlug.useQuery(
     { slug: slug || "" },
-    { enabled: !!slug }
+    { enabled: !!slug, retry: false }
   );
 
   const addToWaitlist = trpc.waitlist.add.useMutation({
@@ -112,7 +112,7 @@ export default function PatientPortal() {
 
   if (error || !professional) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#F5F3EF' }}>
         <Card className="max-w-md w-full mx-4">
           <CardContent className="pt-6 text-center">
             <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
@@ -125,16 +125,16 @@ export default function PatientPortal() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
+    <div className="min-h-screen" style={{ backgroundColor: '#F5F3EF' }}>
       {/* Header */}
-      <header className="bg-white shadow-sm">
+      <header className="bg-white shadow-sm border-b border-stone-200">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#3D3D2E' }}>
             <ClipboardList className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h1 className="font-bold text-gray-900">SISA</h1>
-            <p className="text-xs text-gray-500">Sistema de Gerenciamento de Salas</p>
+            <h1 className="font-bold" style={{ color: '#3D3D2E' }}>SISA</h1>
+            <p className="text-xs text-stone-500">Sistema de Gerenciamento de Salas</p>
           </div>
         </div>
       </header>
@@ -142,11 +142,11 @@ export default function PatientPortal() {
       <main className="max-w-4xl mx-auto px-4 py-8 space-y-6">
         {/* Professional Profile Card */}
         <Card className="overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 h-24"></div>
+          <div className="h-24" style={{ background: 'linear-gradient(135deg, #3D3D2E 0%, #5C5C42 100%)' }}></div>
           <CardContent className="pt-0 pb-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4 -mt-8">
               <div className="w-16 h-16 bg-white rounded-full border-4 border-white shadow-md flex items-center justify-center">
-                <User className="h-8 w-8 text-blue-600" />
+                <User className="h-8 w-8" style={{ color: '#7C5C4A' }} />
               </div>
               <div className="flex-1 pb-1">
                 <h2 className="text-2xl font-bold text-gray-900">{professional.name}</h2>
@@ -175,7 +175,7 @@ export default function PatientPortal() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-blue-600" />
+              <Calendar className="h-5 w-5" style={{ color: '#7C5C4A' }} />
               Lista de Espera
             </CardTitle>
             <CardDescription>
@@ -185,11 +185,11 @@ export default function PatientPortal() {
           <CardContent>
             {!showWaitlistForm ? (
               <div className="text-center py-4">
-                <Calendar className="h-12 w-12 text-blue-200 mx-auto mb-3" />
+                <Calendar className="h-12 w-12 mx-auto mb-3" style={{ color: '#C8C8E8' }} />
                 <p className="text-gray-500 mb-4">
                   Clique no botão abaixo para se cadastrar na lista de espera deste profissional.
                 </p>
-                <Button onClick={() => setShowWaitlistForm(true)} className="bg-blue-600 hover:bg-blue-700">
+                <Button onClick={() => setShowWaitlistForm(true)} style={{ backgroundColor: '#7C5C4A', color: 'white' }} className="hover:opacity-90">
                   <Calendar className="h-4 w-4 mr-2" />
                   Entrar na Lista de Espera
                 </Button>
@@ -250,9 +250,10 @@ export default function PatientPortal() {
                         onClick={() => handleDayToggle(day.value)}
                         className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
                           formData.preferredDays.includes(day.value)
-                            ? "bg-blue-600 text-white border-blue-600"
-                            : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
+                            ? "text-white border-transparent"
+                            : "bg-white text-gray-700 border-gray-300"
                         }`}
+                        style={formData.preferredDays.includes(day.value) ? { backgroundColor: '#7C5C4A', borderColor: '#7C5C4A' } : {}}
                       >
                         {day.label}
                       </button>
@@ -295,9 +296,9 @@ export default function PatientPortal() {
                 <Separator />
 
                 {/* LGPD Consent */}
-                <div className="bg-blue-50 rounded-lg p-4 space-y-3">
+                <div className="rounded-lg p-4 space-y-3" style={{ backgroundColor: '#C8C8E820', border: '1px solid #C8C8E8' }}>
                   <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-blue-600" />
+                    <CheckCircle2 className="h-4 w-4" style={{ color: '#7C5C4A' }} />
                     Consentimento LGPD
                   </h4>
                   <p className="text-sm text-gray-600 leading-relaxed">{LGPD_CONSENT_TEXT}</p>
@@ -324,7 +325,7 @@ export default function PatientPortal() {
                   <Button
                     onClick={handleSubmit}
                     disabled={addToWaitlist.isPending || !formData.consentGiven}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700"
+                    style={{ backgroundColor: '#7C5C4A', color: 'white' }} className="flex-1 hover:opacity-90"
                   >
                     {addToWaitlist.isPending ? "Enviando..." : "Entrar na Lista de Espera"}
                   </Button>

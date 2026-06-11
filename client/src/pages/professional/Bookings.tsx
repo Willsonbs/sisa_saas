@@ -7,6 +7,7 @@ import { Calendar, Clock, MapPin, X, Plus } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { Link } from "wouter";
 import { toast } from "sonner";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 export default function Bookings() {
   const { data: bookings, isLoading, refetch } = trpc.bookings.list.useQuery();
@@ -34,9 +35,7 @@ export default function Bookings() {
   };
 
   const handleCancel = (bookingId: number) => {
-    if (confirm("Tem certeza que deseja cancelar esta reserva?")) {
-      cancelMutation.mutate({ id: bookingId });
-    }
+    cancelMutation.mutate({ id: bookingId });
   };
 
   return (
@@ -127,16 +126,36 @@ export default function Bookings() {
                     </div>
 
                     {(booking.status === 'pending_payment' || booking.status === 'confirmed') && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-destructive hover:bg-destructive hover:text-destructive-foreground ml-4"
-                        onClick={() => handleCancel(booking.id)}
-                        disabled={cancelMutation.isPending}
-                      >
-                        <X className="h-4 w-4 mr-2" />
-                        Cancelar
-                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-destructive hover:bg-destructive hover:text-destructive-foreground ml-4"
+                            disabled={cancelMutation.isPending}
+                          >
+                            <X className="h-4 w-4 mr-2" />
+                            Cancelar
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Cancelar reserva</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Tem certeza que deseja cancelar esta reserva? Dependendo da política da clínica, o reembolso pode não ser possível.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Manter reserva</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              onClick={() => handleCancel(booking.id)}
+                            >
+                              Cancelar reserva
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     )}
                   </div>
                 </CardContent>

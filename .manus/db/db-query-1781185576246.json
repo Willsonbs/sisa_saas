@@ -1,0 +1,106 @@
+{
+  "query": "DESCRIBE tenants;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2K2nZhchkWvioe9.44e5ea8f5c60 --database BKg3JWXSVAysuyURANpvoX --execute DESCRIBE tenants;",
+  "rows": [
+    {
+      "Field": "id",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "PRI",
+      "Default": "NULL",
+      "Extra": "auto_increment"
+    },
+    {
+      "Field": "name",
+      "Type": "varchar(200)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "slug",
+      "Type": "varchar(100)",
+      "Null": "NO",
+      "Key": "UNI",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "email",
+      "Type": "varchar(320)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "phone",
+      "Type": "varchar(20)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "address",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "plan",
+      "Type": "enum('starter','pro','business','enterprise')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "starter",
+      "Extra": ""
+    },
+    {
+      "Field": "isActive",
+      "Type": "tinyint(1)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "1",
+      "Extra": ""
+    },
+    {
+      "Field": "cancellationWindowHours",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "12",
+      "Extra": ""
+    },
+    {
+      "Field": "lateArrivalToleranceMinutes",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "15",
+      "Extra": ""
+    },
+    {
+      "Field": "createdAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": ""
+    },
+    {
+      "Field": "updatedAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nid\tint\tNO\tPRI\tNULL\tauto_increment\nname\tvarchar(200)\tNO\t\tNULL\t\nslug\tvarchar(100)\tNO\tUNI\tNULL\t\nemail\tvarchar(320)\tYES\t\tNULL\t\nphone\tvarchar(20)\tYES\t\tNULL\t\naddress\ttext\tYES\t\tNULL\t\nplan\tenum('starter','pro','business','enterprise')\tNO\t\tstarter\t\nisActive\ttinyint(1)\tNO\t\t1\t\ncancellationWindowHours\tint\tNO\t\t12\t\nlateArrivalToleranceMinutes\tint\tNO\t\t15\t\ncreatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\t\nupdatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\tDEFAULT_GENERATED on update CURRENT_TIMESTAMP\n",
+  "stderr": "",
+  "execution_time_ms": 338
+}

@@ -99,10 +99,7 @@ export default function Calendar() {
 
   const handleCancelBooking = () => {
     if (!selectedEvent) return;
-    
-    if (confirm("Tem certeza que deseja cancelar esta reserva?")) {
-      cancelMutation.mutate({ id: selectedEvent.id });
-    }
+    cancelMutation.mutate({ id: selectedEvent.id });
   };
 
   const eventStyleGetter = (event: BookingEvent) => {

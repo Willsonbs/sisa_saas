@@ -82,8 +82,8 @@ export default function ProfessionalDashboard() {
             <CardContent>
               <div className="text-2xl font-bold">{unreadNotifications?.length || 0}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                <Link href="/notifications" className="text-primary hover:underline">
-                  Ver todas
+                <Link href="/bookings" className="text-primary hover:underline">
+                  Ver notificações
                 </Link>
               </p>
             </CardContent>
@@ -189,7 +189,7 @@ export default function ProfessionalDashboard() {
                       </p>
                     </div>
                     <Button variant="outline" size="sm" asChild>
-                      <Link href={`/bookings/${booking.id}`}>Ver Detalhes</Link>
+                      <Link href="/bookings">Ver Detalhes</Link>
                     </Button>
                   </div>
                 ))}

@@ -1,0 +1,70 @@
+{
+  "query": "SELECT id, name, email, role FROM users LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2K2nZhchkWvioe9.44e5ea8f5c60 --database BKg3JWXSVAysuyURANpvoX --execute SELECT id, name, email, role FROM users LIMIT 10;",
+  "rows": [
+    {
+      "id": "1",
+      "name": "Erika Goncalves",
+      "email": "erika@clinicadraerikagoncalves.com",
+      "role": "admin"
+    },
+    {
+      "id": "150001",
+      "name": "Dr. Teste",
+      "email": "test_1765477238573@example.com",
+      "role": "professional"
+    },
+    {
+      "id": "150006",
+      "name": "Dr. Primeiro",
+      "email": "test_duplicate_1765477270193@example.com",
+      "role": "professional"
+    },
+    {
+      "id": "180003",
+      "name": "Wilson Bernardes de Faria Santana",
+      "email": "willsonbs@gmail.com",
+      "role": "professional"
+    },
+    {
+      "id": "270001",
+      "name": "Dr. Teste",
+      "email": "test_1765538458244@example.com",
+      "role": "professional"
+    },
+    {
+      "id": "270002",
+      "name": "Dr. Teste Errado",
+      "email": "test_wrong_1765538458604@example.com",
+      "role": "professional"
+    },
+    {
+      "id": "270003",
+      "name": "Dr. Primeiro",
+      "email": "test_duplicate_1765538458810@example.com",
+      "role": "professional"
+    },
+    {
+      "id": "300001",
+      "name": "Dr. Teste",
+      "email": "test_1765550327888@example.com",
+      "role": "professional"
+    },
+    {
+      "id": "300002",
+      "name": "Dr. Teste Errado",
+      "email": "test_wrong_1765550328251@example.com",
+      "role": "professional"
+    },
+    {
+      "id": "300003",
+      "name": "Dr. Primeiro",
+      "email": "test_duplicate_1765550328460@example.com",
+      "role": "professional"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\trole\n1\tErika Goncalves\terika@clinicadraerikagoncalves.com\tadmin\n150001\tDr. Teste\ttest_1765477238573@example.com\tprofessional\n150006\tDr. Primeiro\ttest_duplicate_1765477270193@example.com\tprofessional\n180003\tWilson Bernardes de Faria Santana\twillsonbs@gmail.com\tprofessional\n270001\tDr. Teste\ttest_1765538458244@example.com\tprofessional\n270002\tDr. Teste Errado\ttest_wrong_1765538458604@example.com\tprofessional\n270003\tDr. Primeiro\ttest_duplicate_1765538458810@example.com\tprofessional\n300001\tDr. Teste\ttest_1765550327888@example.com\tprofessional\n300002\tDr. Teste Errado\ttest_wrong_1765550328251@example.com\tprofessional\n300003\tDr. Primeiro\ttest_duplicate_1765550328460@example.com\tprofessional\n",
+  "stderr": "",
+  "execution_time_ms": 259
+}

@@ -121,3 +121,19 @@
 - [x] Exportar relatórios CSV
 - [x] Mostrar link público do profissional no dashboard
 - [x] Página de configurações do profissional com slug editável
+
+## Auditoria de Botões e Redesign Estético
+
+### Auditoria de Botões/Gatilhos
+- [x] Auditar e corrigir todos os botões de navegação (Editar, Salvar, Cancelar, etc.)
+- [x] Verificar rotas do App.tsx e corrigir links quebrados
+- [x] Testar fluxo de reserva completo (criar → confirmar → check-in → concluir)
+- [x] Testar fluxo de créditos (comprar → checkout → retorno)
+- [x] Testar botões do portal do paciente (lista de espera, consentimento)
+- [x] Testar botões admin (bloqueios, auditoria, configurações)
+
+### Redesign Estético
+- [x] Atualizar index.css com nova paleta: terroso (#7C5C4A), lavanda (#C8C8E8), verde-escuro (#3D3D2E), off-white (#F5F3EF)
+- [x] Atualizar tipografia: fonte sans-serif grande e limpa (DM Sans via Google Fonts)
+- [x] Redesenhar landing page (Home.tsx) com layout editorial
+- [x] Redesenhar DashboardLayout com nova estética

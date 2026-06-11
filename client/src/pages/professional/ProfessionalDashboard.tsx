@@ -108,7 +108,7 @@ export default function ProfessionalDashboard() {
                       </div>
                     </div>
                     <Button variant="outline" size="sm" asChild>
-                      <Link href={`/bookings/${booking.id}`}>Detalhes</Link>
+                      <Link href="/bookings">Detalhes</Link>
                     </Button>
                   </div>
                 ))}

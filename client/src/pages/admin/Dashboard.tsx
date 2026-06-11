@@ -151,7 +151,7 @@ export default function AdminDashboard() {
                         {room.isActive ? 'Ativa' : 'Inativa'}
                       </span>
                       <Button variant="outline" size="sm" asChild>
-                        <Link href={`/admin/rooms/${room.id}`}>Editar</Link>
+                        <Link href={`/admin/rooms/${room.id}/edit`}>Editar</Link>
                       </Button>
                     </div>
                   </div>

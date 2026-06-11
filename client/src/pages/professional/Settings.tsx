@@ -30,6 +30,9 @@ export default function ProfessionalSettings() {
 
   useEffect(() => {
     if (user) {
+      // Auto-generate slug from name if not set
+      const autoSlug = user.publicProfileSlug || 
+        (user.name ? user.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') : '');
       setForm({
         name: user.name || "",
         phone: user.phone || "",
@@ -37,7 +40,7 @@ export default function ProfessionalSettings() {
         professionalRegistry: user.professionalRegistry || "",
         registryType: user.registryType || "",
         bio: user.bio || "",
-        publicProfileSlug: user.publicProfileSlug || "",
+        publicProfileSlug: autoSlug,
         cpf: user.cpf || "",
         address: user.address || "",
       });

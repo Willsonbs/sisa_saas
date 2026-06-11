@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { trpc } from "@/lib/trpc";
 import { Settings, Plus, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
@@ -223,18 +224,34 @@ export default function CancellationRules() {
                           </DialogContent>
                         </Dialog>
 
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                          onClick={() => {
-                            if (confirm("Tem certeza que deseja remover esta regra?")) {
-                              deleteMutation.mutate({ id: rule.id });
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Remover regra</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Tem certeza que deseja remover esta regra de cancelamento? Esta ação não pode ser desfeita.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                onClick={() => deleteMutation.mutate({ id: rule.id })}
+                              >
+                                Remover
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </div>
                   </CardContent>
