@@ -5,13 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
-import { Calendar, Clock, CreditCard, ArrowLeft, Wallet, BadgeCheck, AlertCircle } from "lucide-react";
+import { CreditCard, ArrowLeft, Wallet, BadgeCheck, AlertCircle, QrCode } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useLocation, useRoute } from "wouter";
 
-type PaymentMode = "credits" | "stripe";
+type PaymentMode = "credits" | "stripe" | "pix";
 
 export default function BookRoom() {
   const [, params] = useRoute("/rooms/:id/book");
@@ -94,7 +94,10 @@ export default function BookRoom() {
     if (paymentMode === "credits") {
       createBookingMutation.mutate(payload);
     } else {
-      createWithPaymentMutation.mutate({ ...payload, paymentMethod: "card" });
+      createWithPaymentMutation.mutate({
+        ...payload,
+        paymentMethod: paymentMode === "pix" ? "pix" : "card",
+      });
     }
   };
 
@@ -268,7 +271,7 @@ export default function BookRoom() {
                         )}
                       </button>
 
-                      {/* Option 2: Stripe */}
+                      {/* Option 2: Card */}
                       <button
                         type="button"
                         onClick={() => setPaymentMode("stripe")}
@@ -280,8 +283,25 @@ export default function BookRoom() {
                       >
                         <CreditCard className={`h-5 w-5 flex-shrink-0 ${paymentMode === "stripe" ? "text-primary" : "text-muted-foreground"}`} />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium">Pagar agora</p>
-                          <p className="text-xs text-muted-foreground">Cartão de crédito via checkout seguro</p>
+                          <p className="text-sm font-medium">Cartão de crédito</p>
+                          <p className="text-xs text-muted-foreground">Checkout seguro via Stripe</p>
+                        </div>
+                      </button>
+
+                      {/* Option 3: PIX */}
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMode("pix")}
+                        className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-colors ${
+                          paymentMode === "pix"
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:border-primary/50"
+                        }`}
+                      >
+                        <QrCode className={`h-5 w-5 flex-shrink-0 ${paymentMode === "pix" ? "text-primary" : "text-muted-foreground"}`} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">PIX</p>
+                          <p className="text-xs text-muted-foreground">Pagamento instantâneo via QR Code</p>
                         </div>
                       </button>
                     </div>
@@ -307,7 +327,9 @@ export default function BookRoom() {
                   {isPending
                     ? "Processando..."
                     : paymentMode === "stripe"
-                    ? `Ir para pagamento · ${formatCurrency(cost)}`
+                    ? `Pagar com cartão · ${formatCurrency(cost)}`
+                    : paymentMode === "pix"
+                    ? `Pagar com PIX · ${formatCurrency(cost)}`
                     : `Confirmar com créditos · ${formatCurrency(cost)}`}
                 </Button>
               </form>

@@ -152,3 +152,4 @@
 - [x] Criar usuário admin@sisa.com com senha admin123 no banco de dados
 - [x] Corrigir senha do profissional willsonbs@gmail.com para admin123
 - [x] Testar fluxo completo: login admin, login profissional, cadastro novo profissional
+- [x] Adicionar opção de pagamento via PIX na tela de reserva (terceira opção além de créditos e cartão)
