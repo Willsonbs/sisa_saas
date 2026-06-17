@@ -35,6 +35,7 @@ const getMenuItems = (role: string) => {
     return [
       { icon: LayoutDashboard, label: "Dashboard", path: "/admin" },
       { icon: Building2, label: "Gerenciar Salas", path: "/admin/rooms" },
+      { icon: CalendarDays, label: "Calendário de Reservas", path: "/admin/calendar" },
       { icon: Lock, label: "Bloqueios de Sala", path: "/admin/room-blocks" },
       { icon: Settings, label: "Regras de Cancelamento", path: "/admin/cancellation-rules" },
       { icon: Users, label: "Profissionais", path: "/admin/professionals" },

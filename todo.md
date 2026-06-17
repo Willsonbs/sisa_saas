@@ -153,3 +153,10 @@
 - [x] Corrigir senha do profissional willsonbs@gmail.com para admin123
 - [x] Testar fluxo completo: login admin, login profissional, cadastro novo profissional
 - [x] Adicionar opção de pagamento via PIX na tela de reserva (terceira opção além de créditos e cartão)
+
+## Sprint 3 - Melhorias de UX e Funcionalidades
+- [x] Calendário de reservas admin: layout semanal/diário com nome do prestador e horário em PT-BR (/admin/calendar)
+- [x] Gestão de profissionais: detalhes, editar e excluir com confirmação
+- [x] Relatórios: taxa de ocupação, relatório por sala, filtros de data/sala, exportar PDF
+- [x] Gerenciar salas: modo card/lista, excluir permanente quando sem movimentação
+- [x] Regras de cancelamento: interface intuitiva com explicação clara e tabela de referência

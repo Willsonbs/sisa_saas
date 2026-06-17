@@ -282,6 +282,19 @@ export const appRouter = router({
         await db.deleteRoom(input.id);
         return { success: true };
       }),
+
+    deleteHard: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const dbConn = await db.getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB unavailable' });
+        const { rooms: roomsTable, bookings: bookingsTable } = await import('../drizzle/schema');
+        const { eq } = await import('drizzle-orm');
+        const existing = await dbConn.select({ id: bookingsTable.id }).from(bookingsTable).where(eq(bookingsTable.roomId, input.id)).limit(1);
+        if (existing.length > 0) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Não é possível excluir: sala possui reservas registradas. Use "Inativar" para desabilitá-la.' });
+        await dbConn.delete(roomsTable).where(eq(roomsTable.id, input.id));
+        return { success: true };
+      }),
   }),
 
   bookings: router({
@@ -851,13 +864,67 @@ export const appRouter = router({
     stats: adminProcedure.query(async () => {
       const rooms = await db.getAllRooms();
       const professionals = await db.getAllProfessionals();
-      
       return {
         totalRooms: rooms.length,
         activeRooms: rooms.filter(r => r.isActive).length,
         totalProfessionals: professionals.length,
       };
     }),
+
+    listAllBookings: adminProcedure
+      .input(z.object({ startDate: z.date().optional(), endDate: z.date().optional(), roomId: z.number().optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        const tenantId = (ctx.user as any).tenantId || 1;
+        const list = await db.getBookingsByTenant(tenantId, input?.startDate, input?.endDate);
+        const filtered = input?.roomId ? list.filter((b: any) => b.roomId === input.roomId) : list;
+        return Promise.all(filtered.map(async (b: any) => {
+          const [prof, room] = await Promise.all([db.getUserById(b.professionalId), db.getRoomById(b.roomId)]);
+          return { ...b, professionalName: (prof as any)?.name || `Profissional #${b.professionalId}`, roomName: (room as any)?.name || `Sala #${b.roomId}` };
+        }));
+      }),
+
+    updateProfessional: adminProcedure
+      .input(z.object({ id: z.number(), name: z.string().optional(), email: z.string().email().optional(), phone: z.string().optional(), specialty: z.string().optional(), professionalRegistry: z.string().optional(), registryType: z.string().optional(), bio: z.string().optional() }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        const dbConn = await db.getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB unavailable' });
+        const { users } = await import('../drizzle/schema');
+        const { eq } = await import('drizzle-orm');
+        await dbConn.update(users).set(data as any).where(eq(users.id, id));
+        return { success: true };
+      }),
+
+    deleteProfessional: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const dbConn = await db.getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB unavailable' });
+        const { users, bookings: bookingsTable, credits: creditsTable } = await import('../drizzle/schema');
+        const { eq } = await import('drizzle-orm');
+        const existing = await dbConn.select({ id: bookingsTable.id }).from(bookingsTable).where(eq(bookingsTable.professionalId, input.id)).limit(1);
+        if (existing.length > 0) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Não é possível excluir: profissional possui reservas registradas.' });
+        await dbConn.delete(creditsTable).where(eq(creditsTable.professionalId, input.id));
+        await dbConn.delete(users).where(eq(users.id, input.id));
+        return { success: true };
+      }),
+
+    reportByRoom: adminProcedure
+      .input(z.object({ roomId: z.number().optional(), startDate: z.date().optional(), endDate: z.date().optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        const tenantId = (ctx.user as any).tenantId || 1;
+        const allRooms = await db.getAllRooms(false);
+        const allBookings = await db.getBookingsByTenant(tenantId, input?.startDate, input?.endDate);
+        const rooms = input?.roomId ? allRooms.filter((r: any) => r.id === input.roomId) : allRooms;
+        return Promise.all(rooms.map(async (room: any) => {
+          const rb = allBookings.filter((b: any) => b.roomId === room.id && b.status === 'confirmed');
+          const enriched = await Promise.all(rb.map(async (b: any) => {
+            const prof = await db.getUserById(b.professionalId);
+            return { ...b, professionalName: (prof as any)?.name || `Profissional #${b.professionalId}` };
+          }));
+          return { room, bookings: enriched, totalBookings: enriched.length, totalRevenue: enriched.reduce((s: number, b: any) => s + b.totalPrice, 0) };
+        }));
+      }),
   }),
 
   cancellationRules: router({
