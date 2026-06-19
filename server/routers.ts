@@ -295,6 +295,58 @@ export const appRouter = router({
         await dbConn.delete(roomsTable).where(eq(roomsTable.id, input.id));
         return { success: true };
       }),
+
+    // Disponibilidade pública das salas — sem dados sensíveis (RF04)
+    availability: protectedProcedure
+      .input(z.object({
+        date: z.date(),
+        tenantId: z.number().optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        const tenantId = input.tenantId ?? (ctx.user as any).tenantId ?? 1;
+        const startOfDay = new Date(input.date);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(input.date);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        const rooms = await db.getAllRooms(false, tenantId);
+        const allBookings = await db.getBookingsByTenant(tenantId, startOfDay, endOfDay);
+        const allBlocks = await db.getAllRoomBlocksByTenant(tenantId, startOfDay, endOfDay);
+
+        // Retorna apenas dados não-sensíveis: sala, horário, tipo de ocupação
+        const occupiedSlots = (allBookings || []).filter((b: any) =>
+          !['cancelled', 'canceled_with_credit', 'no_show'].includes(b.status)
+        ).map((b: any) => ({
+          roomId: b.roomId,
+          startTime: b.startTime,
+          endTime: b.endTime,
+          type: 'booking' as const,
+        }));
+
+        const blockedSlots = (allBlocks || []).map((bl: any) => ({
+          roomId: bl.roomId,
+          startTime: bl.startTime,
+          endTime: bl.endTime,
+          type: bl.blockType === 'maintenance' ? 'maintenance' as const : 'admin_block' as const,
+          reason: bl.reason ?? undefined,
+        }));
+
+        return {
+          rooms: rooms.map((r: any) => ({
+            id: r.id,
+            name: r.name,
+            description: r.description,
+            capacity: r.capacity,
+            pricePerHour: r.pricePerHour,
+            equipment: r.equipment ? JSON.parse(r.equipment) : [],
+            photos: r.photos ? JSON.parse(r.photos) : [],
+            openTime: r.openTime ?? '07:00',
+            closeTime: r.closeTime ?? '21:00',
+          })),
+          occupiedSlots,
+          blockedSlots,
+        };
+      }),
   }),
 
   bookings: router({
@@ -367,7 +419,7 @@ export const appRouter = router({
           input.endTime
         );
         if (hasConflict) {
-          throw new TRPCError({ code: 'CONFLICT', message: 'Time slot already booked' });
+          throw new TRPCError({ code: 'CONFLICT', message: 'Esse horário acabou de ser reservado por outra pessoa. Escolha outro horário disponível.' });
         }
         
         const durationMs = input.endTime.getTime() - input.startTime.getTime();
@@ -391,7 +443,7 @@ export const appRouter = router({
           input.endTime
         );
         if (hasBlockConflict) {
-          throw new TRPCError({ code: 'CONFLICT', message: 'Room is blocked during this time' });
+          throw new TRPCError({ code: 'CONFLICT', message: 'Esta sala está bloqueada neste horário (manutenção ou bloqueio pelo gestor). Escolha outro horário.' });
         }
         
         // Calculate buffer times
@@ -464,12 +516,12 @@ export const appRouter = router({
 
         const hasConflict = await db.checkBookingConflict(input.roomId, input.startTime, input.endTime);
         if (hasConflict) {
-          throw new TRPCError({ code: 'CONFLICT', message: 'Time slot already booked' });
+          throw new TRPCError({ code: 'CONFLICT', message: 'Esse horário acabou de ser reservado por outra pessoa. Escolha outro horário disponível.' });
         }
 
         const hasBlockConflict = await db.checkRoomBlockConflict(input.roomId, input.startTime, input.endTime);
         if (hasBlockConflict) {
-          throw new TRPCError({ code: 'CONFLICT', message: 'Room is blocked during this time' });
+          throw new TRPCError({ code: 'CONFLICT', message: 'Esta sala está bloqueada neste horário (manutenção ou bloqueio pelo gestor). Escolha outro horário.' });
         }
 
         const durationMs = input.endTime.getTime() - input.startTime.getTime();

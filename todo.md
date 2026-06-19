@@ -160,3 +160,11 @@
 - [x] Relatórios: taxa de ocupação, relatório por sala, filtros de data/sala, exportar PDF
 - [x] Gerenciar salas: modo card/lista, excluir permanente quando sem movimentação
 - [x] Regras de cancelamento: interface intuitiva com explicação clara e tabela de referência
+
+## Sprint 4 - Calendário de Disponibilidade no Menu Salas
+- [x] Criar procedure rooms.availability (horários ocupados sem dados sensíveis)
+- [x] Reescrever página Salas do profissional com calendário de disponibilidade por sala
+- [x] Legenda: Disponível / Ocupado / Manutenção / Reservado pelo gestor
+- [x] Clicar em horário livre abre fluxo de reserva
+- [x] Horários de outros profissionais aparecem apenas como "Ocupado" (sem nome/paciente)
+- [x] Melhorar mensagem de erro de conflito: "Esse horário acabou de ser reservado por outra pessoa. Escolha outro horário disponível."
