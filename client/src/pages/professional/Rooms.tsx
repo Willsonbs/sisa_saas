@@ -410,7 +410,7 @@ export default function Rooms() {
         ) : viewMode === "day" ? (
           /* ── MODO DIA ─────────────────────────────────────────────────────── */
           <>
-            <div className="space-y-6">
+            <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${Math.min(pagedRooms.length, 4)}, minmax(0, 1fr))` }}>
               {pagedRooms.map(room => {
                 const blocks = getOccupiedBlocks(room.id, currentDate);
                 // Gera lista de períodos livres e ocupados para exibição
@@ -514,22 +514,28 @@ export default function Rooms() {
 
             {/* Paginação de salas */}
             {!selectedRoom && totalPages > 1 && (
-              <div className="flex items-center justify-center gap-1 pt-2 flex-wrap">
-                {Array.from({ length: totalPages }, (_, i) => {
-                  const start = i * ROOMS_PER_PAGE + 1;
-                  const end   = Math.min((i + 1) * ROOMS_PER_PAGE, rooms.length);
-                  return (
-                    <Button
-                      key={i}
-                      variant={roomPage === i ? "default" : "outline"}
-                      size="sm"
-                      className="text-xs"
-                      onClick={() => setRoomPage(i)}
-                    >
-                      {rooms.slice(i * ROOMS_PER_PAGE, (i + 1) * ROOMS_PER_PAGE).map(r => r.name).join(" | ")}
-                    </Button>
-                  );
-                })}
+              <div className="flex items-center justify-center gap-3 pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  disabled={roomPage === 0}
+                  onClick={() => setRoomPage(p => p - 1)}
+                >
+                  <ChevronLeft className="h-3 w-3 mr-1" /> Anterior
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Página {roomPage + 1} de {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  disabled={roomPage === totalPages - 1}
+                  onClick={() => setRoomPage(p => p + 1)}
+                >
+                  Próxima <ChevronRight className="h-3 w-3 ml-1" />
+                </Button>
               </div>
             )}
           </>
@@ -623,18 +629,28 @@ export default function Rooms() {
 
             {/* Paginação de salas (modo semana) */}
             {!selectedRoom && totalPages > 1 && (
-              <div className="flex items-center justify-center gap-1 pt-2 flex-wrap">
-                {Array.from({ length: totalPages }, (_, i) => (
-                  <Button
-                    key={i}
-                    variant={roomPage === i ? "default" : "outline"}
-                    size="sm"
-                    className="text-xs"
-                    onClick={() => setRoomPage(i)}
-                  >
-                    {rooms.slice(i * ROOMS_PER_PAGE, (i + 1) * ROOMS_PER_PAGE).map(r => r.name).join(" | ")}
-                  </Button>
-                ))}
+              <div className="flex items-center justify-center gap-3 pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  disabled={roomPage === 0}
+                  onClick={() => setRoomPage(p => p - 1)}
+                >
+                  <ChevronLeft className="h-3 w-3 mr-1" /> Anterior
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Página {roomPage + 1} de {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  disabled={roomPage === totalPages - 1}
+                  onClick={() => setRoomPage(p => p + 1)}
+                >
+                  Próxima <ChevronRight className="h-3 w-3 ml-1" />
+                </Button>
               </div>
             )}
           </>
