@@ -3,9 +3,7 @@ import { useLocation } from "wouter";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, CalendarDays, Info, ChevronDown } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarDays, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { DayPicker } from "react-day-picker";
 import { ptBR } from "date-fns/locale";
@@ -20,16 +18,20 @@ const MESES_PT = [
 ];
 const ROOMS_PER_PAGE = 4;
 const DAY_START_HOUR = 7;   // 07:00
-const DAY_END_HOUR   = 21;  // até 21:00
+const DAY_END_HOUR   = 22;  // até 22:00 (exclusive)
+
+// ─── Paleta SISA ─────────────────────────────────────────────────────────────
+const HOUR_COL_BG   = "#EDE8E3";  // off-white quente
+const HOUR_COL_TEXT = "#7C5C4A";  // terracotta
+const HDR_BG        = "#3D3D2E";  // forest-dark (sidebar)
+const HDR_TEXT      = "#C8C4BE";  // texto muted do sidebar
+const CELL_FREE_BG  = "#FFFFFF";
+const CELL_FREE_HOVER = "#F5F3EF";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function fmtTime(h: number, m: number = 0) {
-  return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
-}
-
-function formatCurrency(cents: number) {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
 function addDays(d: Date, n: number) {
@@ -38,26 +40,16 @@ function addDays(d: Date, n: number) {
   return r;
 }
 
-function startOfWeek(d: Date) {
-  const r = new Date(d);
-  r.setDate(r.getDate() - r.getDay());
-  r.setHours(0, 0, 0, 0);
-  return r;
-}
-
 function isSameDay(a: Date, b: Date) {
-  return a.getFullYear() === b.getFullYear() &&
+  return (
+    a.getFullYear() === b.getFullYear() &&
     a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate();
+    a.getDate() === b.getDate()
+  );
 }
 
 function dateLabel(d: Date) {
   return `${DIAS_PT[d.getDay()]}, ${d.getDate()} de ${MESES_PT[d.getMonth()]} de ${d.getFullYear()}`;
-}
-
-// Converte minutos desde meia-noite para string HH:MM
-function minsToTime(mins: number) {
-  return fmtTime(Math.floor(mins / 60), mins % 60);
 }
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
@@ -66,36 +58,36 @@ type SlotType = "free" | "booking" | "maintenance" | "admin_block" | "my_booking
 
 interface OccupiedBlock {
   roomId: number;
-  startMins: number; // minutos desde meia-noite
+  startMins: number;
   endMins: number;
   type: SlotType;
 }
 
 function slotBg(type: SlotType): string {
   switch (type) {
-    case "free":        return "#f0fdf4"; // emerald-50
-    case "booking":     return "#fff1f2"; // red-50
-    case "maintenance": return "#fffbeb"; // amber-50
-    case "admin_block": return "#f8fafc"; // slate-50
-    case "my_booking":  return "#eff6ff"; // blue-50
+    case "free":        return CELL_FREE_BG;
+    case "booking":     return "#FFF1F2";
+    case "maintenance": return "#FFFBEB";
+    case "admin_block": return "#F8FAFC";
+    case "my_booking":  return "#EFF6FF";
   }
 }
 function slotBorder(type: SlotType): string {
   switch (type) {
-    case "free":        return "#bbf7d0";
-    case "booking":     return "#fecdd3";
-    case "maintenance": return "#fde68a";
-    case "admin_block": return "#cbd5e1";
-    case "my_booking":  return "#bfdbfe";
+    case "free":        return "transparent";
+    case "booking":     return "#FECDD3";
+    case "maintenance": return "#FDE68A";
+    case "admin_block": return "#CBD5E1";
+    case "my_booking":  return "#BFDBFE";
   }
 }
 function slotTextColor(type: SlotType): string {
   switch (type) {
-    case "free":        return "#15803d";
-    case "booking":     return "#dc2626";
-    case "maintenance": return "#b45309";
-    case "admin_block": return "#64748b";
-    case "my_booking":  return "#1d4ed8";
+    case "free":        return "#6B7280";
+    case "booking":     return "#DC2626";
+    case "maintenance": return "#B45309";
+    case "admin_block": return "#64748B";
+    case "my_booking":  return "#1D4ED8";
   }
 }
 function slotLabel(type: SlotType): string {
@@ -103,7 +95,7 @@ function slotLabel(type: SlotType): string {
     case "free":        return "Disponível";
     case "booking":     return "Ocupado";
     case "maintenance": return "Manutenção";
-    case "admin_block": return "Reservado pelo gestor";
+    case "admin_block": return "Bloqueado";
     case "my_booking":  return "Minha reserva";
   }
 }
@@ -125,21 +117,23 @@ function DatePickerPopover({ date, onChange }: { date: Date; onChange: (d: Date)
   return (
     <div className="relative" ref={ref}>
       <button
-        className="flex items-center gap-1.5 text-sm font-medium hover:text-primary transition-colors"
-        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1.5 text-sm font-medium hover:opacity-80 transition-opacity"
+        onClick={() => setOpen((o) => !o)}
         title="Selecionar data"
       >
         <CalendarDays className="h-4 w-4 text-muted-foreground" />
-        <span>{dateLabel(date)}</span>
+        <span className="capitalize">{dateLabel(date)}</span>
         <ChevronDown className="h-3 w-3 text-muted-foreground" />
       </button>
 
       {open && (
-        <div className="absolute top-8 left-0 z-50 bg-white border rounded-xl shadow-xl p-2">
+        <div className="absolute top-9 left-0 z-50 bg-white border rounded-xl shadow-xl p-2">
           <DayPicker
             mode="single"
             selected={date}
-            onSelect={(d) => { if (d) { onChange(d); setOpen(false); } }}
+            onSelect={(d) => {
+              if (d) { onChange(d); setOpen(false); }
+            }}
             locale={ptBR}
             weekStartsOn={0}
           />
@@ -149,17 +143,25 @@ function DatePickerPopover({ date, onChange }: { date: Date; onChange: (d: Date)
   );
 }
 
+// ─── Legenda ─────────────────────────────────────────────────────────────────
+
+const LEGEND_ITEMS: { type: SlotType; label: string }[] = [
+  { type: "free",        label: "Disponível" },
+  { type: "my_booking",  label: "Minha reserva" },
+  { type: "booking",     label: "Ocupado" },
+  { type: "maintenance", label: "Manutenção" },
+  { type: "admin_block", label: "Bloqueado" },
+];
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export default function Rooms() {
   const [, navigate] = useLocation();
-  const [viewMode, setViewMode] = useState<"day" | "week">("day");
   const [currentDate, setCurrentDate] = useState(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
     return d;
   });
-  const [selectedRoom, setSelectedRoom] = useState<number | null>(null);
   const [roomPage, setRoomPage] = useState(0);
 
   // Estabilizar a data para evitar re-fetches infinitos
@@ -167,45 +169,29 @@ export default function Rooms() {
     const d = new Date(currentDate);
     d.setHours(12, 0, 0, 0);
     return d;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentDate.toDateString()]);
 
   const { data, isLoading } = trpc.rooms.availability.useQuery({ date: queryDate });
   const { data: myBookings } = trpc.bookings.list.useQuery();
-
-  // ID do usuário logado para distinguir "minha reserva" vs "ocupado por outro"
   const { data: me } = trpc.auth.me.useQuery();
   const myUserId = (me as any)?.id;
-
-  // Conjunto de slots que são minhas reservas (usando professionalId retornado pela procedure)
-  const myBookingSet = useMemo(() => {
-    if (!myBookings) return new Set<string>();
-    return new Set(
-      (myBookings as any[])
-        .filter(b => !["cancelled", "canceled_with_credit", "no_show"].includes(b.status))
-        .map(b => `${b.roomId}|${new Date(b.startTime).toISOString()}|${new Date(b.endTime).toISOString()}`)
-    );
-  }, [myBookings]);
 
   const rooms = (data?.rooms ?? []) as any[];
   const occupiedSlots = (data?.occupiedSlots ?? []) as any[];
   const blockedSlots  = (data?.blockedSlots  ?? []) as any[];
 
-  // Paginação de salas (4 por página) quando "todas"
-  const totalPages = Math.ceil(rooms.length / ROOMS_PER_PAGE);
-  const pagedRooms = selectedRoom
-    ? rooms.filter(r => r.id === selectedRoom)
-    : rooms.slice(roomPage * ROOMS_PER_PAGE, (roomPage + 1) * ROOMS_PER_PAGE);
+  // Paginação: 4 salas por página
+  const totalPages = Math.max(1, Math.ceil(rooms.length / ROOMS_PER_PAGE));
+  const pagedRooms = rooms.slice(roomPage * ROOMS_PER_PAGE, (roomPage + 1) * ROOMS_PER_PAGE);
 
-  const weekDays = useMemo(() => {
-    const start = startOfWeek(currentDate);
-    return Array.from({ length: 7 }, (_, i) => addDays(start, i));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentDate.toDateString()]);
+  // Horas exibidas: 07:00 a 21:00
+  const hours = Array.from({ length: DAY_END_HOUR - DAY_START_HOUR }, (_, i) => i + DAY_START_HOUR);
 
   // Converte reservas/bloqueios para blocos de minutos
-  function getOccupiedBlocks(roomId: number, day: Date): OccupiedBlock[] {
+  function getOccupiedBlocks(roomId: number): OccupiedBlock[] {
     const blocks: OccupiedBlock[] = [];
+    const day = currentDate;
     const dayStart = new Date(day);
     dayStart.setHours(0, 0, 0, 0);
 
@@ -227,7 +213,6 @@ export default function Rooms() {
       const s = new Date(bk.startTime);
       const e = new Date(bk.endTime);
       if (!isSameDay(s, day) && !isSameDay(e, day) && !(s < day && e > dayStart)) continue;
-      // Usa professionalId do slot para distinguir "minha reserva" vs "ocupado por outro"
       const isMyBooking = bk.professionalId === myUserId;
       blocks.push({
         roomId,
@@ -240,427 +225,235 @@ export default function Rooms() {
     return blocks;
   }
 
-  // Retorna tipo de slot para uma hora inteira (para modo semana)
-  function getHourSlotType(roomId: number, day: Date, hour: number): SlotType {
+  function getHourSlotType(roomId: number, hour: number): SlotType {
     const slotStartMins = hour * 60;
     const slotEndMins   = (hour + 1) * 60;
-    const blocks = getOccupiedBlocks(roomId, day);
+    const blocks = getOccupiedBlocks(roomId);
     for (const b of blocks) {
       if (b.startMins < slotEndMins && b.endMins > slotStartMins) return b.type;
     }
     return "free";
   }
 
-  function handleFreeSlotClick(roomId: number, day: Date, startMins: number) {
-    const start = new Date(day);
-    start.setHours(Math.floor(startMins / 60), startMins % 60, 0, 0);
-    const end = new Date(day);
-    end.setHours(Math.floor(startMins / 60) + 1, startMins % 60, 0, 0);
-    navigate(`/rooms/${roomId}/book?start=${start.toISOString()}&end=${end.toISOString()}`);
-  }
-
-  function handleWeekSlotClick(roomId: number, day: Date, hour: number) {
-    const type = getHourSlotType(roomId, day, hour);
+  function handleSlotClick(roomId: number, hour: number) {
+    const type = getHourSlotType(roomId, hour);
     if (type !== "free") {
       const msgs: Record<SlotType, string> = {
-        free: "",
-        booking: "Esse horário já está ocupado por outro profissional.",
-        my_booking: "Você já tem uma reserva neste horário.",
+        free:        "",
+        booking:     "Esse horário já está ocupado por outro profissional.",
+        my_booking:  "Você já tem uma reserva neste horário.",
         maintenance: "Sala em manutenção neste horário.",
         admin_block: "Horário bloqueado pelo gestor.",
       };
       toast.info(msgs[type]);
       return;
     }
-    handleFreeSlotClick(roomId, day, hour * 60);
+    const start = new Date(currentDate);
+    start.setHours(hour, 0, 0, 0);
+    const end = new Date(currentDate);
+    end.setHours(hour + 1, 0, 0, 0);
+    navigate(`/rooms/${roomId}/book?start=${start.toISOString()}&end=${end.toISOString()}`);
   }
 
   function navDate(dir: number) {
-    setCurrentDate(prev => addDays(prev, viewMode === "day" ? dir : dir * 7));
+    setCurrentDate((prev) => addDays(prev, dir));
+    setRoomPage(0);
   }
 
-  const weekNavLabel = useMemo(() => {
-    const s = weekDays[0];
-    const e = weekDays[6];
-    if (s.getMonth() === e.getMonth()) {
-      return `${s.getDate()} a ${e.getDate()} de ${MESES_PT[s.getMonth()]} de ${s.getFullYear()}`;
-    }
-    return `${s.getDate()} de ${MESES_PT[s.getMonth()]} a ${e.getDate()} de ${MESES_PT[e.getMonth()]} de ${e.getFullYear()}`;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentDate.toDateString()]);
-
-  const hours = Array.from({ length: DAY_END_HOUR - DAY_START_HOUR }, (_, i) => i + DAY_START_HOUR);
-
-  // ── Render ──────────────────────────────────────────────────────────────────
+  const isToday = isSameDay(currentDate, new Date());
 
   return (
     <DashboardLayout>
-      <div className="p-6 space-y-4">
-
+      <div className="space-y-4">
         {/* Título */}
         <div>
-          <h1 className="text-2xl font-bold">Disponibilidade das Salas</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Clique em um horário <span className="text-emerald-600 font-medium">disponível</span> para iniciar uma reserva
+          <h1 className="text-3xl font-bold">Salas</h1>
+          <p className="text-muted-foreground mt-1">
+            Visualize a disponibilidade das salas e faça sua reserva
           </p>
         </div>
 
-        {/* Filtro de salas — select compacto */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm text-muted-foreground font-medium">Sala:</span>
-          <select
-            className="text-sm border rounded-md px-3 py-1.5 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-            value={selectedRoom ?? ""}
-            onChange={e => {
-              setSelectedRoom(e.target.value === "" ? null : Number(e.target.value));
-              setRoomPage(0);
-            }}
+        {/* Barra de navegação */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="font-semibold tracking-wide"
+            onClick={() => { setCurrentDate(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }); setRoomPage(0); }}
           >
-            <option value="">Todas as salas</option>
-            {rooms.map(r => (
-              <option key={r.id} value={r.id}>{r.name}</option>
-            ))}
-          </select>
+            HOJE
+          </Button>
+          <Button variant="ghost" size="icon" onClick={() => navDate(-1)}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={() => navDate(1)}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <DatePickerPopover date={currentDate} onChange={(d) => { setCurrentDate(d); setRoomPage(0); }} />
         </div>
 
         {/* Legenda */}
-        <div className="flex flex-wrap gap-2 text-xs">
-          {(["free","booking","my_booking","maintenance","admin_block"] as SlotType[]).map(t => (
-            <span
-              key={t}
-              style={{
-                background: slotBg(t),
-                border: `1px solid ${slotBorder(t)}`,
-                color: slotTextColor(t),
-              }}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-medium"
-            >
-              {slotLabel(t)}
-            </span>
+        <div className="flex flex-wrap gap-3 text-xs">
+          {LEGEND_ITEMS.map(({ type, label }) => (
+            <div key={type} className="flex items-center gap-1.5">
+              <span
+                className="inline-block w-2.5 h-2.5 rounded-sm border"
+                style={{ background: slotBg(type), borderColor: slotBorder(type) || "#D1D5DB" }}
+              />
+              <span className="text-muted-foreground">{label}</span>
+            </div>
           ))}
         </div>
 
-        {/* Barra de navegação */}
-        <Card className="shadow-sm">
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="icon" onClick={() => navDate(-1)}>
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs px-3"
-                  onClick={() => setCurrentDate(new Date(new Date().setHours(0,0,0,0)))}
-                >
-                  Hoje
-                </Button>
-                <Button variant="ghost" size="icon" onClick={() => navDate(1)}>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-
-                {/* DatePicker com ícone de calendário */}
-                <div className="ml-2">
-                  {viewMode === "day" ? (
-                    <DatePickerPopover date={currentDate} onChange={d => {
-                      const nd = new Date(d);
-                      nd.setHours(0,0,0,0);
-                      setCurrentDate(nd);
-                    }} />
-                  ) : (
-                    <span className="text-sm font-medium">{weekNavLabel}</span>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex gap-1">
-                <Button
-                  variant={viewMode === "day" ? "default" : "outline"}
-                  size="sm"
-                  className="text-xs"
-                  onClick={() => setViewMode("day")}
-                >
-                  Dia
-                </Button>
-                <Button
-                  variant={viewMode === "week" ? "default" : "outline"}
-                  size="sm"
-                  className="text-xs"
-                  onClick={() => setViewMode("week")}
-                >
-                  Semana
-                </Button>
-              </div>
+        {/* Grade de calendário */}
+        <div className="border rounded-lg overflow-auto shadow-sm">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-64 text-muted-foreground">
+              <CalendarDays className="h-8 w-8 mr-2 animate-pulse" /> Carregando disponibilidade...
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Conteúdo */}
-        {isLoading ? (
-          <div className="flex items-center justify-center h-64 text-muted-foreground">
-            <CalendarDays className="h-8 w-8 animate-pulse mr-2" />
-            Carregando disponibilidade...
-          </div>
-        ) : rooms.length === 0 ? (
-          <Card>
-            <CardContent className="text-center py-16">
-              <Info className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-40" />
-              <p className="font-medium">Nenhuma sala disponível</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Entre em contato com a administração para mais informações.
-              </p>
-            </CardContent>
-          </Card>
-        ) : viewMode === "day" ? (
-          /* ── MODO DIA ─────────────────────────────────────────────────────── */
-          <>
-            <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${Math.min(pagedRooms.length, 4)}, minmax(0, 1fr))` }}>
-              {pagedRooms.map(room => {
-                const blocks = getOccupiedBlocks(room.id, currentDate);
-                // Gera lista de períodos livres e ocupados para exibição
-                const dayStartMins = DAY_START_HOUR * 60;
-                const dayEndMins   = DAY_END_HOUR   * 60;
-
-                // Ordena blocos por início
-                const sorted = [...blocks]
-                  .filter(b => b.endMins > dayStartMins && b.startMins < dayEndMins)
-                  .sort((a, b) => a.startMins - b.startMins);
-
-                // Constrói segmentos intercalados (livre / ocupado)
-                type Segment = { startMins: number; endMins: number; type: SlotType };
-                const segments: Segment[] = [];
-                let cursor = dayStartMins;
-
-                for (const blk of sorted) {
-                  const bStart = Math.max(blk.startMins, dayStartMins);
-                  const bEnd   = Math.min(blk.endMins,   dayEndMins);
-                  if (bStart > cursor) {
-                    segments.push({ startMins: cursor, endMins: bStart, type: "free" });
-                  }
-                  segments.push({ startMins: bStart, endMins: bEnd, type: blk.type });
-                  cursor = bEnd;
-                }
-                if (cursor < dayEndMins) {
-                  segments.push({ startMins: cursor, endMins: dayEndMins, type: "free" });
-                }
-
-                return (
-                  <Card key={room.id} className="overflow-hidden shadow-sm">
-                    {/* Cabeçalho da sala */}
-                    <div
-                      className="flex items-center justify-between px-4 py-3"
-                      style={{ background: "#3D3D2E" }}
+          ) : rooms.length === 0 ? (
+            <div className="flex items-center justify-center h-64 text-muted-foreground">
+              Nenhuma sala disponível.
+            </div>
+          ) : (
+            <table
+              className="w-full border-collapse text-sm"
+              style={{ minWidth: `${64 + pagedRooms.length * 160}px` }}
+            >
+              <thead>
+                <tr>
+                  {/* Célula do canto superior esquerdo — mesma cor da coluna de horas */}
+                  <th
+                    className="w-16 border-b border-r sticky left-0 z-20"
+                    style={{ background: HOUR_COL_BG }}
+                  />
+                  {/* Cabeçalhos das salas — apenas o nome, sem preço ou descrição */}
+                  {pagedRooms.map((room) => (
+                    <th
+                      key={room.id}
+                      className="border-b border-r py-3 px-2 text-center"
+                      style={{ background: HDR_BG, minWidth: "160px" }}
                     >
-                      <div>
-                        <span className="font-semibold text-white">{room.name}</span>
-                        {room.description && (
-                          <span className="ml-2 text-xs text-white/60">{room.description}</span>
-                        )}
+                      <div
+                        className="text-sm font-semibold truncate"
+                        style={{ color: HDR_TEXT }}
+                        title={room.name}
+                      >
+                        {room.name}
                       </div>
-                      <Badge variant="outline" className="text-white border-white/30 text-xs">
-                        {formatCurrency(room.pricePerHour)}/h
-                      </Badge>
-                    </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
 
-                    {/* Segmentos de horário */}
-                    <div className="divide-y">
-                      {segments.map((seg, i) => {
-                        const isFree = seg.type === "free";
-                        return (
-                          <div
-                            key={i}
-                            className="flex items-center px-4 py-2.5 transition-colors"
-                            style={{
-                              background: slotBg(seg.type),
-                              borderLeft: `3px solid ${slotBorder(seg.type)}`,
-                              cursor: isFree ? "pointer" : "not-allowed",
-                            }}
-                            onClick={() => {
-                              if (!isFree) {
-                                toast.info(
-                                  seg.type === "booking" ? "Horário ocupado por outro profissional." :
-                                  seg.type === "my_booking" ? "Você já tem reserva neste horário." :
-                                  seg.type === "maintenance" ? "Sala em manutenção." :
-                                  "Horário bloqueado pelo gestor."
-                                );
-                                return;
-                              }
-                              handleFreeSlotClick(room.id, currentDate, seg.startMins);
-                            }}
-                          >
-                            {/* Coluna de hora de referência */}
-                            <span
-                              className="w-28 shrink-0 font-mono"
-                              style={{ color: "#7C5C4A", fontSize: "11px" }}
-                            >
-                              {minsToTime(seg.startMins)} – {minsToTime(seg.endMins)}
-                            </span>
-                            <span
-                              className="ml-4 text-xs font-semibold"
-                              style={{ color: slotTextColor(seg.type) }}
-                            >
-                              {slotLabel(seg.type)}
-                            </span>
-                            {isFree && (
-                              <span className="ml-auto text-xs underline underline-offset-2 opacity-60"
-                                style={{ color: slotTextColor(seg.type) }}>
-                                Clique para reservar
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
+              <tbody>
+                {hours.map((hour) => (
+                  <tr key={hour} className="h-12">
+                    {/* Coluna de horas — off-white, terracotta, 11px */}
+                    <td
+                      className="border-b border-r text-right pr-2 pt-1 sticky left-0 z-10 align-top select-none w-16"
+                      style={{
+                        background: HOUR_COL_BG,
+                        color: HOUR_COL_TEXT,
+                        fontSize: "11px",
+                        fontWeight: 500,
+                      }}
+                    >
+                      {fmtTime(hour)}
+                    </td>
 
-            {/* Paginação de salas */}
-            {!selectedRoom && totalPages > 1 && (
-              <div className="flex items-center justify-center gap-3 pt-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
-                  disabled={roomPage === 0}
-                  onClick={() => setRoomPage(p => p - 1)}
-                >
-                  <ChevronLeft className="h-3 w-3 mr-1" /> Anterior
-                </Button>
-                <span className="text-sm text-muted-foreground">
-                  Página {roomPage + 1} de {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
-                  disabled={roomPage === totalPages - 1}
-                  onClick={() => setRoomPage(p => p + 1)}
-                >
-                  Próxima <ChevronRight className="h-3 w-3 ml-1" />
-                </Button>
-              </div>
-            )}
-          </>
-        ) : (
-          /* ── MODO SEMANA ──────────────────────────────────────────────────── */
-          <>
-            <div className="space-y-6">
-              {pagedRooms.map(room => (
-                <Card key={room.id} className="overflow-hidden shadow-sm">
-                  <div
-                    className="flex items-center justify-between px-4 py-3"
-                    style={{ background: "#3D3D2E" }}
-                  >
-                    <span className="font-semibold text-white">{room.name}</span>
-                    <Badge variant="outline" className="text-white border-white/30 text-xs">
-                      {formatCurrency(room.pricePerHour)}/h
-                    </Badge>
-                  </div>
+                    {/* Células das salas */}
+                    {pagedRooms.map((room) => {
+                      const type = getHourSlotType(room.id, hour);
+                      const isFree = type === "free";
+                      return (
+                        <HourCell
+                          key={room.id}
+                          type={type}
+                          isFree={isFree}
+                          onClick={() => handleSlotClick(room.id, hour)}
+                        />
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
 
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs border-collapse min-w-[600px]">
-                      <thead>
-                        <tr>
-                          <th
-                            className="w-16 border-b border-r px-2 py-2 text-center"
-                            style={{ background: "#EDE8E3", color: "#7C5C4A", fontSize: "11px" }}
-                          >
-                            Hora
-                          </th>
-                          {weekDays.map(day => {
-                            const isToday = isSameDay(day, new Date());
-                            return (
-                              <th
-                                key={day.toISOString()}
-                                className="border-b border-r px-2 py-2 text-center font-medium"
-                                style={{
-                                  background: isToday ? "#C8A882" : "#3D3D2E",
-                                  color: "#fff",
-                                  minWidth: "80px",
-                                  fontSize: "11px",
-                                }}
-                              >
-                                {DIAS_PT[day.getDay()]}<br />
-                                <span className="font-normal opacity-80">
-                                  {day.getDate()}/{String(day.getMonth()+1).padStart(2,"0")}
-                                </span>
-                              </th>
-                            );
-                          })}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {hours.map(h => (
-                          <tr key={h}>
-                            <td
-                              className="border-b border-r px-2 py-1.5 text-center font-mono"
-                              style={{ background: "#EDE8E3", color: "#7C5C4A", fontSize: "11px" }}
-                            >
-                              {fmtTime(h)}
-                            </td>
-                            {weekDays.map(day => {
-                              const type = getHourSlotType(room.id, day, h);
-                              return (
-                                <td
-                                  key={day.toISOString()}
-                                  className="border-b border-r px-1 py-1.5 text-center transition-colors"
-                                  style={{
-                                    background: slotBg(type),
-                                    cursor: type === "free" ? "pointer" : "not-allowed",
-                                  }}
-                                  onClick={() => handleWeekSlotClick(room.id, day, h)}
-                                  title={type === "free" ? "Clique para reservar" : slotLabel(type)}
-                                >
-                                  <span
-                                    className="text-[10px] font-medium leading-tight"
-                                    style={{ color: slotTextColor(type) }}
-                                  >
-                                    {slotLabel(type)}
-                                  </span>
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </Card>
-              ))}
-            </div>
+        {/* Paginação — só aparece quando há mais de 4 salas */}
+        {rooms.length > ROOMS_PER_PAGE && (
+          <div className="flex items-center justify-center gap-3 pt-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs"
+              disabled={roomPage === 0}
+              onClick={() => setRoomPage((p) => p - 1)}
+            >
+              <ChevronLeft className="h-3 w-3 mr-1" /> Anterior
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Página {roomPage + 1} de {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs"
+              disabled={roomPage === totalPages - 1}
+              onClick={() => setRoomPage((p) => p + 1)}
+            >
+              Próxima <ChevronRight className="h-3 w-3 ml-1" />
+            </Button>
+          </div>
+        )}
 
-            {/* Paginação de salas (modo semana) */}
-            {!selectedRoom && totalPages > 1 && (
-              <div className="flex items-center justify-center gap-3 pt-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
-                  disabled={roomPage === 0}
-                  onClick={() => setRoomPage(p => p - 1)}
-                >
-                  <ChevronLeft className="h-3 w-3 mr-1" /> Anterior
-                </Button>
-                <span className="text-sm text-muted-foreground">
-                  Página {roomPage + 1} de {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
-                  disabled={roomPage === totalPages - 1}
-                  onClick={() => setRoomPage(p => p + 1)}
-                >
-                  Próxima <ChevronRight className="h-3 w-3 ml-1" />
-                </Button>
-              </div>
-            )}
-          </>
+        {!isLoading && rooms.length > 0 && (
+          <p className="text-xs text-muted-foreground text-right">
+            {isToday ? "Hoje" : dateLabel(currentDate)} — clique em um horário disponível para reservar
+          </p>
         )}
       </div>
     </DashboardLayout>
+  );
+}
+
+// ─── Célula de hora com hover ─────────────────────────────────────────────────
+
+function HourCell({
+  type,
+  isFree,
+  onClick,
+}: {
+  type: SlotType;
+  isFree: boolean;
+  onClick: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+
+  const bg = hovered && isFree ? CELL_FREE_HOVER : slotBg(type);
+
+  return (
+    <td
+      className="border-b border-r align-middle px-1 py-0.5 transition-colors"
+      style={{
+        background: bg,
+        cursor: isFree ? "pointer" : "not-allowed",
+      }}
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      title={isFree ? "Clique para reservar" : slotLabel(type)}
+    >
+      <div className="flex items-center justify-center h-full">
+        <span
+          className="text-[10px] font-medium leading-tight text-center"
+          style={{ color: slotTextColor(type) }}
+        >
+          {isFree && hovered ? "Reservar" : slotLabel(type)}
+        </span>
+      </div>
+    </td>
   );
 }

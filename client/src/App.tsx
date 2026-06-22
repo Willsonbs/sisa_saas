@@ -18,7 +18,6 @@ import Reports from "./pages/admin/Reports";
 import AdminCalendar from "./pages/admin/AdminCalendar";
 import BookRoom from "./pages/professional/BookRoom";
 import Bookings from "./pages/professional/Bookings";
-import CalendarPage from "./pages/professional/Calendar";
 import PatientPortal from "./pages/PatientPortal";
 import WaitlistPage from "./pages/professional/Waitlist";
 import TenantSettings from "./pages/admin/TenantSettings";
@@ -49,7 +48,6 @@ function Router() {
       {/* Booking Routes */}
       <Route path="/rooms/:id/book" component={BookRoom} />
       <Route path="/bookings" component={Bookings} />
-      <Route path="/calendar" component={CalendarPage} />
       <Route path="/waitlist" component={WaitlistPage} />
       
       {/* Admin Extended Routes */}
