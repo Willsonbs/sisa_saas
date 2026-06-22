@@ -106,6 +106,11 @@ export default function BookRoom() {
     const startDateTime = new Date(`${dateVal}T${startVal}`);
     const endDateTime = new Date(`${dateVal}T${endVal}`);
 
+    if (startDateTime <= new Date()) {
+      toast.error("Não é possível reservar em data ou horário no passado. Escolha um horário a partir de agora.");
+      return;
+    }
+
     if (endDateTime <= startDateTime) {
       toast.error("Horário de término deve ser após o horário de início");
       return;

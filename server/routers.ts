@@ -434,6 +434,14 @@ export const appRouter = router({
         privateNotes: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
+        // Rejeita reservas no passado
+        if (input.startTime <= new Date()) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Não é possível reservar em data ou horário no passado.',
+          });
+        }
+
         const room = await db.getRoomById(input.roomId, ctx.auth.tenantId);
         if (!room || !room.isActive) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Room not available' });
@@ -536,6 +544,14 @@ export const appRouter = router({
         paymentMethod: z.enum(['card', 'pix']).optional().default('card'),
       }))
       .mutation(async ({ ctx, input }) => {
+        // Rejeita reservas no passado
+        if (input.startTime <= new Date()) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Não é possível reservar em data ou horário no passado.',
+          });
+        }
+
         const room = await db.getRoomById(input.roomId, ctx.auth.tenantId);
         if (!room || !room.isActive) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Room not available' });

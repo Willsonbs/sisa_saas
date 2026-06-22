@@ -54,7 +54,7 @@ function dateLabel(d: Date) {
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
-type SlotType = "free" | "booking" | "maintenance" | "admin_block" | "my_booking";
+type SlotType = "free" | "booking" | "maintenance" | "admin_block" | "my_booking" | "past";
 
 interface OccupiedBlock {
   roomId: number;
@@ -70,6 +70,7 @@ function slotBg(type: SlotType): string {
     case "maintenance": return "#FFFBEB";
     case "admin_block": return "#F8FAFC";
     case "my_booking":  return "#EFF6FF";
+    case "past":        return "#F3F4F6";
   }
 }
 function slotBorder(type: SlotType): string {
@@ -79,6 +80,7 @@ function slotBorder(type: SlotType): string {
     case "maintenance": return "#FDE68A";
     case "admin_block": return "#CBD5E1";
     case "my_booking":  return "#BFDBFE";
+    case "past":        return "transparent";
   }
 }
 function slotTextColor(type: SlotType): string {
@@ -88,6 +90,7 @@ function slotTextColor(type: SlotType): string {
     case "maintenance": return "#B45309";
     case "admin_block": return "#64748B";
     case "my_booking":  return "#1D4ED8";
+    case "past":        return "#D1D5DB";
   }
 }
 function slotLabel(type: SlotType): string {
@@ -97,6 +100,7 @@ function slotLabel(type: SlotType): string {
     case "maintenance": return "Manutenção";
     case "admin_block": return "Bloqueado";
     case "my_booking":  return "Minha reserva";
+    case "past":        return "";
   }
 }
 
@@ -136,6 +140,8 @@ function DatePickerPopover({ date, onChange }: { date: Date; onChange: (d: Date)
             }}
             locale={ptBR}
             weekStartsOn={0}
+            disabled={{ before: new Date() }}
+            fromDate={new Date()}
           />
         </div>
       )}
@@ -151,6 +157,7 @@ const LEGEND_ITEMS: { type: SlotType; label: string }[] = [
   { type: "booking",     label: "Ocupado" },
   { type: "maintenance", label: "Manutenção" },
   { type: "admin_block", label: "Bloqueado" },
+  { type: "past",        label: "Horário passado" },
 ];
 
 // ─── Componente principal ─────────────────────────────────────────────────────
@@ -226,6 +233,12 @@ export default function Rooms() {
   }
 
   function getHourSlotType(roomId: number, hour: number): SlotType {
+    // Bloqueia horários no passado (data anterior ou mesma data mas hora já passou)
+    const now = new Date();
+    const slotDate = new Date(currentDate);
+    slotDate.setHours(hour + 1, 0, 0, 0); // fim do slot
+    if (slotDate <= now) return "past";
+
     const slotStartMins = hour * 60;
     const slotEndMins   = (hour + 1) * 60;
     const blocks = getOccupiedBlocks(roomId);
@@ -244,8 +257,9 @@ export default function Rooms() {
         my_booking:  "Você já tem uma reserva neste horário.",
         maintenance: "Sala em manutenção neste horário.",
         admin_block: "Horário bloqueado pelo gestor.",
+        past:        "Não é possível reservar horários no passado.",
       };
-      toast.info(msgs[type]);
+      if (msgs[type]) toast.info(msgs[type]);
       return;
     }
     const start = new Date(currentDate);
@@ -283,7 +297,12 @@ export default function Rooms() {
           >
             HOJE
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => navDate(-1)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navDate(-1)}
+            disabled={isSameDay(addDays(currentDate, -1), new Date()) || addDays(currentDate, -1) < new Date()}
+          >
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <Button variant="ghost" size="icon" onClick={() => navDate(1)}>
@@ -431,6 +450,7 @@ function HourCell({
   onClick: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
+  const isPast = type === "past";
 
   const bg = hovered && isFree ? CELL_FREE_HOVER : slotBg(type);
 
@@ -439,19 +459,20 @@ function HourCell({
       className="border-b border-r align-middle px-1 py-0.5 transition-colors"
       style={{
         background: bg,
-        cursor: isFree ? "pointer" : "not-allowed",
+        cursor: isPast ? "default" : isFree ? "pointer" : "not-allowed",
+        opacity: isPast ? 0.5 : 1,
       }}
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
+      onClick={isPast ? undefined : onClick}
+      onMouseEnter={() => { if (!isPast) setHovered(true); }}
       onMouseLeave={() => setHovered(false)}
-      title={isFree ? "Clique para reservar" : slotLabel(type)}
+      title={isPast ? "Horário no passado" : isFree ? "Clique para reservar" : slotLabel(type)}
     >
       <div className="flex items-center justify-center h-full">
         <span
           className="text-[10px] font-medium leading-tight text-center"
           style={{ color: slotTextColor(type) }}
         >
-          {isFree && hovered ? "Reservar" : slotLabel(type)}
+          {!isPast && isFree && hovered ? "Reservar" : slotLabel(type)}
         </span>
       </div>
     </td>
