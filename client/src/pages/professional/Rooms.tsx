@@ -173,7 +173,11 @@ export default function Rooms() {
   const { data, isLoading } = trpc.rooms.availability.useQuery({ date: queryDate });
   const { data: myBookings } = trpc.bookings.list.useQuery();
 
-  // Conjunto de slots que são minhas reservas
+  // ID do usuário logado para distinguir "minha reserva" vs "ocupado por outro"
+  const { data: me } = trpc.auth.me.useQuery();
+  const myUserId = (me as any)?.id;
+
+  // Conjunto de slots que são minhas reservas (usando professionalId retornado pela procedure)
   const myBookingSet = useMemo(() => {
     if (!myBookings) return new Set<string>();
     return new Set(
@@ -223,12 +227,13 @@ export default function Rooms() {
       const s = new Date(bk.startTime);
       const e = new Date(bk.endTime);
       if (!isSameDay(s, day) && !isSameDay(e, day) && !(s < day && e > dayStart)) continue;
-      const key = `${bk.roomId}|${s.toISOString()}|${e.toISOString()}`;
+      // Usa professionalId do slot para distinguir "minha reserva" vs "ocupado por outro"
+      const isMyBooking = bk.professionalId === myUserId;
       blocks.push({
         roomId,
         startMins: s.getHours() * 60 + s.getMinutes(),
         endMins:   e.getHours() * 60 + e.getMinutes(),
-        type: myBookingSet.has(key) ? "my_booking" : "booking",
+        type: isMyBooking ? "my_booking" : "booking",
       });
     }
 

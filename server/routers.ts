@@ -314,12 +314,14 @@ export const appRouter = router({
         const allBlocks = await db.getAllRoomBlocksByTenant(tenantId, startOfDay, endOfDay);
 
         // Retorna apenas dados não-sensíveis: sala, horário, tipo de ocupação
+        // professionalId é incluído para que o frontend distinga "minha reserva" vs "ocupado por outro"
         const occupiedSlots = (allBookings || []).filter((b: any) =>
           !['cancelled', 'canceled_with_credit', 'no_show'].includes(b.status)
         ).map((b: any) => ({
           roomId: b.roomId,
           startTime: b.startTime,
           endTime: b.endTime,
+          professionalId: b.professionalId,
           type: 'booking' as const,
         }));
 

@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE notifications MODIFY COLUMN type ENUM(\n  'booking_confirmation',\n  'booking_reminder',\n  'booking_reminder_24h',\n  'booking_reminder_2h',\n  'booking_cancelled',\n  'booking_blocked_cancellation',\n  'payment_success',\n  'payment_failed',\n  'credit_added',\n  'noshow_registered',\n  'professional_approved',\n  'professional_blocked',\n  'general'\n) NOT NULL;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2K2nZhchkWvioe9.44e5ea8f5c60 --database BKg3JWXSVAysuyURANpvoX --execute ALTER TABLE notifications MODIFY COLUMN type ENUM(\n  'booking_confirmation',\n  'booking_reminder',\n  'booking_reminder_24h',\n  'booking_reminder_2h',\n  'booking_cancelled',\n  'booking_blocked_cancellation',\n  'payment_success',\n  'payment_failed',\n  'credit_added',\n  'noshow_registered',\n  'professional_approved',\n  'professional_blocked',\n  'general'\n) NOT NULL;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 586
+}

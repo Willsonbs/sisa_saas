@@ -18,9 +18,37 @@ export default function BookRoom() {
   const [, setLocation] = useLocation();
   const roomId = params?.id ? parseInt(params.id) : 0;
 
-  const [date, setDate] = useState("");
-  const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
+  // Pré-preencher data/hora a partir dos query params ?start=...&end=...
+  const [date, setDate] = useState(() => {
+    const p = new URLSearchParams(window.location.search);
+    const s = p.get("start");
+    if (s) {
+      const d = new Date(s);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    return "";
+  });
+  const [startTime, setStartTime] = useState(() => {
+    const p = new URLSearchParams(window.location.search);
+    const s = p.get("start");
+    if (s) {
+      const d = new Date(s);
+      return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    }
+    return "";
+  });
+  const [endTime, setEndTime] = useState(() => {
+    const p = new URLSearchParams(window.location.search);
+    const e = p.get("end");
+    if (e) {
+      const d = new Date(e);
+      return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    }
+    return "";
+  });
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("credits");
 
   const { data: room, isLoading } = trpc.rooms.getById.useQuery({ id: roomId });

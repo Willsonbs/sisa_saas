@@ -341,6 +341,7 @@ export const notifications = mysqlTable("notifications", {
   
   type: mysqlEnum("type", [
     "booking_confirmation",
+    "booking_reminder",
     "booking_reminder_24h",
     "booking_reminder_2h",
     "booking_cancelled",
