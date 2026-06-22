@@ -511,3 +511,34 @@ export const settings = mysqlTable("settings", {
 
 export type Setting = typeof settings.$inferSelect;
 export type InsertSetting = typeof settings.$inferInsert;
+
+/**
+ * Patient Access Logs — trilha de acesso a dados sensíveis de pacientes (LGPD)
+ * Registra quem abriu/visualizou/editou dados de paciente e quando.
+ * "Não basta registrar alteração — precisa saber: quem abriu o prontuário?"
+ */
+export const patientAccessLogs = mysqlTable("patientAccessLogs", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+
+  // Quem acessou
+  userId: int("userId").notNull(),
+  userEmail: varchar("userEmail", { length: 320 }),
+
+  // Qual reserva/paciente foi acessado
+  bookingId: int("bookingId").notNull(),
+
+  // Tipo de ação: view = visualizou, edit = editou, export = exportou
+  action: mysqlEnum("action", ["view", "edit", "export"]).notNull(),
+
+  // Contexto adicional (ex: "Acessou via dashboard", "Editou privateNotes")
+  context: varchar("context", { length: 200 }),
+
+  // Endereço IP para auditoria
+  ipAddress: varchar("ipAddress", { length: 45 }),
+
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PatientAccessLog = typeof patientAccessLogs.$inferSelect;
+export type InsertPatientAccessLog = typeof patientAccessLogs.$inferInsert;

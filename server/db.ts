@@ -273,11 +273,15 @@ export async function updateRoom(id: number, data: Partial<InsertRoom>) {
   await db.update(rooms).set(data).where(eq(rooms.id, id));
 }
 
-export async function getRoomById(id: number) {
+export async function getRoomById(id: number, tenantId?: number) {
   const db = await getDb();
   if (!db) return undefined;
   
-  const result = await db.select().from(rooms).where(eq(rooms.id, id)).limit(1);
+  // Isolamento de tenant: sempre filtra por tenantId para evitar acesso cross-tenant
+  const conditions = tenantId !== undefined
+    ? and(eq(rooms.id, id), eq(rooms.tenantId, tenantId))
+    : eq(rooms.id, id);
+  const result = await db.select().from(rooms).where(conditions).limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
 
@@ -359,11 +363,15 @@ export async function updateBooking(id: number, data: Partial<InsertBooking>) {
   await db.update(bookings).set(data).where(eq(bookings.id, id));
 }
 
-export async function getBookingById(id: number) {
+export async function getBookingById(id: number, tenantId?: number) {
   const db = await getDb();
   if (!db) return undefined;
   
-  const result = await db.select().from(bookings).where(eq(bookings.id, id)).limit(1);
+  // Isolamento de tenant: sempre filtra por tenantId para evitar acesso cross-tenant
+  const conditions = tenantId !== undefined
+    ? and(eq(bookings.id, id), eq(bookings.tenantId, tenantId))
+    : eq(bookings.id, id);
+  const result = await db.select().from(bookings).where(conditions).limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
 

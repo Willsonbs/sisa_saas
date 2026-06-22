@@ -168,3 +168,14 @@
 - [x] Clicar em horário livre abre fluxo de reserva
 - [x] Horários de outros profissionais aparecem apenas como "Ocupado" (sem nome/paciente)
 - [x] Melhorar mensagem de erro de conflito: "Esse horário acabou de ser reservado por outra pessoa. Escolha outro horário disponível."
+
+## Sprint 6 - Segurança e Conformidade LGPD
+- [x] Criar tipo AuthenticatedUser com tenantId garantido (não-nulo) em _core/trpc.ts
+- [x] Substituir todos os 21 usos de (ctx.user as any) por ctx.auth tipado
+- [x] Adicionar tenantId obrigatório em getRoomById e getBookingById (isolamento de tenant)
+- [x] Criar módulo de criptografia AES-256-GCM (_core/encryption.ts)
+- [x] Criptografar patientName, patientPhone e privateNotes na escrita (bookings.create)
+- [x] Descriptografar dados sensíveis na leitura (bookings.list, bookings.getById, admin.listAllBookings)
+- [x] Criar tabela patient_access_logs para trilha de acesso LGPD
+- [x] Criar helper logPatientAccess e registrar acesso em bookings.getById
+- [x] Sanitizar portal.getAvailableSlots: retorna apenas slots livres (sem nomes/horários/notas)

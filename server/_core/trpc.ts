@@ -2,6 +2,7 @@ import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
+import { resolveTenantId, type AuthenticatedUser } from "@shared/userContext";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
@@ -10,6 +11,10 @@ const t = initTRPC.context<TrpcContext>().create({
 export const router = t.router;
 export const publicProcedure = t.procedure;
 
+/**
+ * Middleware que garante usuário autenticado e injeta ctx.auth com tipos fortes.
+ * ctx.auth.tenantId é sempre number (nunca null) — usa resolveTenantId() internamente.
+ */
 const requireUser = t.middleware(async opts => {
   const { ctx, next } = opts;
 
@@ -17,10 +22,19 @@ const requireUser = t.middleware(async opts => {
     throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
   }
 
+  const auth: AuthenticatedUser = {
+    id: ctx.user.id,
+    email: ctx.user.email,
+    role: ctx.user.role as AuthenticatedUser["role"],
+    tenantId: resolveTenantId(ctx.user),
+    name: ctx.user.name ?? null,
+  };
+
   return next({
     ctx: {
       ...ctx,
       user: ctx.user,
+      auth, // ctx.auth é a forma tipada e segura de acessar o usuário
     },
   });
 });
@@ -35,10 +49,19 @@ export const adminProcedure = t.procedure.use(
       throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
     }
 
+    const auth: AuthenticatedUser = {
+      id: ctx.user.id,
+      email: ctx.user.email,
+      role: ctx.user.role as AuthenticatedUser["role"],
+      tenantId: resolveTenantId(ctx.user),
+      name: ctx.user.name ?? null,
+    };
+
     return next({
       ctx: {
         ...ctx,
         user: ctx.user,
+        auth,
       },
     });
   }),

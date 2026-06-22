@@ -15,10 +15,12 @@ import {
 } from "./emailService";
 import { storagePut } from "./storage";
 import { nanoid } from "nanoid";
+import { encrypt, decrypt } from "./_core/encryption";
+import { logPatientAccess, getClientIp } from "./_core/patientAccessLog";
 
 // Admin-only procedure
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
-  if (ctx.user.role !== 'admin') {
+  if (ctx.auth.role !== 'admin') {
     throw new TRPCError({ code: 'FORBIDDEN', message: 'Admin access required' });
   }
   return next({ ctx });
@@ -26,7 +28,7 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
 
 // Professional or admin procedure
 const professionalProcedure = protectedProcedure.use(({ ctx, next }) => {
-  if (ctx.user.role !== 'admin' && ctx.user.role !== 'professional') {
+  if (ctx.auth.role !== 'admin' && ctx.auth.role !== 'professional') {
     throw new TRPCError({ code: 'FORBIDDEN', message: 'Professional access required' });
   }
   return next({ ctx });
@@ -148,18 +150,18 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         if (input.publicProfileSlug) {
           const existing = await db.getUserBySlug(input.publicProfileSlug);
-          if (existing && existing.id !== ctx.user.id) {
+          if (existing && existing.id !== ctx.auth.id) {
             throw new TRPCError({ code: 'CONFLICT', message: 'Este slug já está em uso por outro profissional.' });
           }
         }
-        await db.updateUserProfile(ctx.user.id, input);
+        await db.updateUserProfile(ctx.auth.id, input);
         return { success: true };
       }),
     checkSlug: protectedProcedure
       .input(z.object({ slug: z.string().min(3) }))
       .mutation(async ({ ctx, input }) => {
         const existing = await db.getUserBySlug(input.slug);
-        const available = !existing || existing.id === ctx.user.id;
+        const available = !existing || existing.id === ctx.auth.id;
         return { available };
       }),
   }),
@@ -177,10 +179,11 @@ export const appRouter = router({
         }));
       }),
     
-    getById: publicProcedure
+    getById: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .query(async ({ input }) => {
-        const room = await db.getRoomById(input.id);
+      .query(async ({ ctx, input }) => {
+        // Isolamento de tenant: só retorna a sala se pertencer ao tenant do usuário logado
+        const room = await db.getRoomById(input.id, ctx.auth.tenantId);
         if (!room) throw new TRPCError({ code: 'NOT_FOUND', message: 'Room not found' });
         return {
           ...room,
@@ -213,7 +216,7 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const roomData = {
           ...input,
-          tenantId: (ctx.user as any).tenantId || 1,
+          tenantId: ctx.auth.tenantId,
           equipment: input.equipment ? JSON.stringify(input.equipment) : null,
           features: input.features ? JSON.stringify(input.features) : null,
           photos: null,
@@ -261,8 +264,8 @@ export const appRouter = router({
         photoBase64: z.string(),
         mimeType: z.string(),
       }))
-      .mutation(async ({ input }) => {
-        const room = await db.getRoomById(input.roomId);
+      .mutation(async ({ input, ctx }) => {
+        const room = await db.getRoomById(input.roomId, ctx.auth.tenantId);
         if (!room) throw new TRPCError({ code: 'NOT_FOUND', message: 'Room not found' });
         
         const buffer = Buffer.from(input.photoBase64, 'base64');
@@ -303,7 +306,7 @@ export const appRouter = router({
         tenantId: z.number().optional(),
       }))
       .query(async ({ ctx, input }) => {
-        const tenantId = input.tenantId ?? (ctx.user as any).tenantId ?? 1;
+        const tenantId = input.tenantId ?? ctx.auth.tenantId;
         const startOfDay = new Date(input.date);
         startOfDay.setHours(0, 0, 0, 0);
         const endOfDay = new Date(input.date);
@@ -355,13 +358,17 @@ export const appRouter = router({
     list: professionalProcedure
       .input(z.object({ status: z.string().optional() }).optional())
       .query(async ({ ctx, input }) => {
-        const bookings = await db.getBookingsByProfessional(ctx.user.id, input?.status);
+        const bookings = await db.getBookingsByProfessional(ctx.auth.id, input?.status);
         
         const enrichedBookings = await Promise.all(
           bookings.map(async (booking) => {
-            const room = await db.getRoomById(booking.roomId);
+            const room = await db.getRoomById(booking.roomId, ctx.auth.tenantId);
             return {
               ...booking,
+              // Descriptografa dados sensíveis (LGPD)
+              patientName: decrypt(booking.patientName) ?? booking.patientName,
+              patientPhone: decrypt(booking.patientPhone),
+              privateNotes: decrypt(booking.privateNotes),
               room,
             };
           })
@@ -373,20 +380,37 @@ export const appRouter = router({
     upcoming: professionalProcedure
       .input(z.object({ limit: z.number().optional() }).optional())
       .query(async ({ ctx, input }) => {
-        return db.getUpcomingBookings(ctx.user.id, input?.limit);
+        return db.getUpcomingBookings(ctx.auth.id, input?.limit);
       }),
     
     getById: protectedProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ ctx, input }) => {
-        const booking = await db.getBookingById(input.id);
+        const booking = await db.getBookingById(input.id, ctx.auth.tenantId);
         if (!booking) throw new TRPCError({ code: 'NOT_FOUND', message: 'Booking not found' });
         
-        if (ctx.user.role !== 'admin' && booking.professionalId !== ctx.user.id) {
+        if (ctx.auth.role !== 'admin' && booking.professionalId !== ctx.auth.id) {
           throw new TRPCError({ code: 'FORBIDDEN', message: 'Access denied' });
         }
         
-        return booking;
+        // Log de acesso LGPD: registra quem visualizou dados do paciente
+        void logPatientAccess({
+          tenantId: ctx.auth.tenantId,
+          userId: ctx.auth.id,
+          userEmail: ctx.auth.email,
+          bookingId: booking.id,
+          action: 'view',
+          context: 'getById',
+          ipAddress: getClientIp(ctx.req),
+        });
+        
+        // Descriptografa dados sensíveis antes de retornar
+        return {
+          ...booking,
+          patientName: decrypt(booking.patientName) ?? booking.patientName,
+          patientPhone: decrypt(booking.patientPhone),
+          privateNotes: decrypt(booking.privateNotes),
+        };
       }),
     
     getByRoom: publicProcedure
@@ -410,7 +434,7 @@ export const appRouter = router({
         privateNotes: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        const room = await db.getRoomById(input.roomId);
+        const room = await db.getRoomById(input.roomId, ctx.auth.tenantId);
         if (!room || !room.isActive) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Room not available' });
         }
@@ -428,7 +452,7 @@ export const appRouter = router({
         const durationHours = durationMs / (1000 * 60 * 60);
         const totalPrice = Math.ceil(durationHours * room.pricePerHour);
         
-        const balance = await db.getCreditBalance(ctx.user.id);
+        const balance = await db.getCreditBalance(ctx.auth.id);
         if (balance < totalPrice) {
           throw new TRPCError({ 
             code: 'PRECONDITION_FAILED', 
@@ -452,12 +476,13 @@ export const appRouter = router({
         const bufferStartTime = new Date(input.startTime.getTime() - (room.bufferBefore || 0) * 60000);
         const bufferEndTime = new Date(input.endTime.getTime() + (room.bufferAfter || 0) * 60000);
         
+        // Criptografa dados sensíveis antes de persistir (LGPD)
         await db.createBooking({
           roomId: input.roomId,
           tenantId,
-          professionalId: ctx.user.id,
-          patientName: input.patientName,
-          patientPhone: input.patientPhone || null,
+          professionalId: ctx.auth.id,
+          patientName: encrypt(input.patientName) ?? input.patientName,
+          patientPhone: encrypt(input.patientPhone || null),
           startTime: input.startTime,
           endTime: input.endTime,
           bufferStartTime,
@@ -465,12 +490,12 @@ export const appRouter = router({
           totalPrice,
           status: 'confirmed',
           receptionNotes: input.receptionNotes || null,
-          privateNotes: input.privateNotes || null,
+          privateNotes: encrypt(input.privateNotes || null),
         });
         
         const newBalance = balance - totalPrice;
         await db.addCredit({
-          professionalId: ctx.user.id,
+          professionalId: ctx.auth.id,
           tenantId,
           amount: -totalPrice,
           type: 'debit',
@@ -478,19 +503,19 @@ export const appRouter = router({
           balanceAfter: newBalance,
         });
         
-        if (ctx.user.email) {
+        if (ctx.auth.email) {
           await sendEmail({
-            to: ctx.user.email,
+            to: ctx.auth.email,
             subject: 'Reserva Confirmada - On Life',
             html: getBookingConfirmationEmail({
-              professionalName: ctx.user.name || 'Profissional',
+              professionalName: ctx.auth.name || 'Profissional',
               roomName: room.name,
               startTime: input.startTime,
               endTime: input.endTime,
               patientName: input.patientName,
               totalPrice,
             }),
-            userId: ctx.user.id,
+            userId: ctx.auth.id,
             type: 'booking_confirmation',
           });
         }
@@ -511,7 +536,7 @@ export const appRouter = router({
         paymentMethod: z.enum(['card', 'pix']).optional().default('card'),
       }))
       .mutation(async ({ ctx, input }) => {
-        const room = await db.getRoomById(input.roomId);
+        const room = await db.getRoomById(input.roomId, ctx.auth.tenantId);
         if (!room || !room.isActive) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Room not available' });
         }
@@ -538,7 +563,7 @@ export const appRouter = router({
         const bookingResult = await db.createBooking({
           roomId: input.roomId,
           tenantId,
-          professionalId: ctx.user.id,
+          professionalId: ctx.auth.id,
           patientName: input.patientName,
           patientPhone: input.patientPhone || null,
           startTime: input.startTime,
@@ -555,7 +580,7 @@ export const appRouter = router({
 
         // Create payment record
         const paymentResult = await db.createPayment({
-          professionalId: ctx.user.id,
+          professionalId: ctx.auth.id,
           tenantId,
           amount: totalPrice,
           method: 'credit_card',
@@ -585,7 +610,7 @@ export const appRouter = router({
             success_url: `${appUrl}/bookings?payment=success`,
             cancel_url: `${appUrl}/rooms/${input.roomId}/book?payment=cancelled`,
             metadata: {
-              professionalId: ctx.user.id.toString(),
+              professionalId: ctx.auth.id.toString(),
               tenantId: tenantId.toString(),
               bookingId: bookingId?.toString() || '',
               paymentRecordId: (paymentResult as any)?.insertId?.toString() || '',
@@ -613,12 +638,12 @@ export const appRouter = router({
         reason: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        const booking = await db.getBookingById(input.id);
+        const booking = await db.getBookingById(input.id, ctx.auth.tenantId);
         if (!booking) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Booking not found' });
         }
         
-        if (ctx.user.role !== 'admin' && booking.professionalId !== ctx.user.id) {
+        if (ctx.auth.role !== 'admin' && booking.professionalId !== ctx.auth.id) {
           throw new TRPCError({ code: 'FORBIDDEN', message: 'Access denied' });
         }
         
@@ -644,16 +669,16 @@ export const appRouter = router({
         await db.updateBooking(input.id, {
           status: 'canceled_with_credit',
           cancelledAt: now,
-          cancelledBy: ctx.user.id,
+          cancelledBy: ctx.auth.id,
           cancellationReason: input.reason || null,
         });
         
         if (refundAmount > 0) {
-          const balance = await db.getCreditBalance(ctx.user.id);
+          const balance = await db.getCreditBalance(ctx.auth.id);
           const newBalance = balance + refundAmount;
           
           await db.addCredit({
-            professionalId: ctx.user.id,
+            professionalId: ctx.auth.id,
             tenantId: booking.tenantId || 1,
             amount: refundAmount,
             type: 'refund',
@@ -663,18 +688,18 @@ export const appRouter = router({
           });
         }
         
-        const room = await db.getRoomById(booking.roomId);
-        if (ctx.user.email && room) {
+        const room = await db.getRoomById(booking.roomId, ctx.auth.tenantId);
+        if (ctx.auth.email && room) {
           await sendEmail({
-            to: ctx.user.email,
+            to: ctx.auth.email,
             subject: 'Reserva Cancelada - On Life',
             html: getCancellationEmail({
-              professionalName: ctx.user.name || 'Profissional',
+              professionalName: ctx.auth.name || 'Profissional',
               roomName: room.name,
               startTime: booking.startTime,
               refundAmount,
             }),
-            userId: ctx.user.id,
+            userId: ctx.auth.id,
             type: 'booking_cancelled',
             bookingId: input.id,
           });
@@ -686,15 +711,15 @@ export const appRouter = router({
 
   credits: router({
     balance: professionalProcedure.query(async ({ ctx }) => {
-      const tenantId = (ctx.user as any).tenantId || 1;
-      return db.getCreditBalance(ctx.user.id, tenantId);
+      const tenantId = ctx.auth.tenantId;
+      return db.getCreditBalance(ctx.auth.id, tenantId);
     }),
     
     history: professionalProcedure
       .input(z.object({ limit: z.number().optional() }).optional())
       .query(async ({ ctx, input }) => {
-        const tenantId = (ctx.user as any).tenantId || 1;
-        return db.getCreditHistory(ctx.user.id, input?.limit, tenantId);
+        const tenantId = ctx.auth.tenantId;
+        return db.getCreditHistory(ctx.auth.id, input?.limit, tenantId);
       }),
     
     packages: publicProcedure.query(() => {
@@ -709,7 +734,7 @@ export const appRouter = router({
         description: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        const tenantId = (ctx.user as any).tenantId || 1;
+        const tenantId = ctx.auth.tenantId;
         const balance = await db.getCreditBalance(input.professionalId, tenantId);
         const newBalance = balance + input.amount;
         
@@ -724,8 +749,8 @@ export const appRouter = router({
         
         await db.createAuditLog({
           tenantId,
-          userId: ctx.user.id,
-          userEmail: ctx.user.email,
+          userId: ctx.auth.id,
+          userEmail: ctx.auth.email,
           action: 'credit.manual_add',
           entityType: 'credit',
           entityId: input.professionalId,
@@ -748,7 +773,7 @@ export const appRouter = router({
     getBalanceByProfessional: adminProcedure
       .input(z.object({ professionalId: z.number() }))
       .query(async ({ ctx, input }) => {
-        const tenantId = (ctx.user as any).tenantId || 1;
+        const tenantId = ctx.auth.tenantId;
         return db.getCreditBalance(input.professionalId, tenantId);
       }),
   }),
@@ -757,7 +782,7 @@ export const appRouter = router({
     history: professionalProcedure
       .input(z.object({ limit: z.number().optional() }).optional())
       .query(async ({ ctx, input }) => {
-        return db.getPaymentHistory(ctx.user.id, input?.limit);
+        return db.getPaymentHistory(ctx.auth.id, input?.limit);
       }),
     
     // Create Stripe checkout session for credit purchase
@@ -771,11 +796,11 @@ export const appRouter = router({
         if (!pkg) throw new TRPCError({ code: 'NOT_FOUND', message: 'Pacote não encontrado' });
         
         const stripe = await import('stripe').then(m => new m.default(process.env.STRIPE_SECRET_KEY!));
-        const tenantId = (ctx.user as any).tenantId || 1;
+        const tenantId = ctx.auth.tenantId;
         
         // Create payment record first
         const paymentResult = await db.createPayment({
-          professionalId: ctx.user.id,
+          professionalId: ctx.auth.id,
           tenantId,
           amount: pkg.price,
           method: 'credit_card',
@@ -806,7 +831,7 @@ export const appRouter = router({
             success_url: `${appUrl}/credits?payment=success`,
             cancel_url: `${appUrl}/credits?payment=cancelled`,
             metadata: {
-              professionalId: ctx.user.id.toString(),
+              professionalId: ctx.auth.id.toString(),
               tenantId: tenantId.toString(),
               packageId: pkg.id,
               credits: pkg.credits.toString(),
@@ -843,7 +868,7 @@ export const appRouter = router({
     listByTenant: adminProcedure
       .input(z.object({ limit: z.number().optional() }).optional())
       .query(async ({ ctx, input }) => {
-        const tenantId = (ctx.user as any).tenantId || 1;
+        const tenantId = ctx.auth.tenantId;
         const db2 = await import('./db').then(m => m.getDb());
         if (!db2) return [];
         const { payments: paymentsTable } = await import('../drizzle/schema');
@@ -859,11 +884,11 @@ export const appRouter = router({
     list: protectedProcedure
       .input(z.object({ limit: z.number().optional() }).optional())
       .query(async ({ ctx, input }) => {
-        return db.getUserNotifications(ctx.user.id, input?.limit);
+        return db.getUserNotifications(ctx.auth.id, input?.limit);
       }),
     
     unread: protectedProcedure.query(async ({ ctx }) => {
-      return db.getUnreadNotifications(ctx.user.id);
+      return db.getUnreadNotifications(ctx.auth.id);
     }),
     
     markAsRead: protectedProcedure
@@ -874,7 +899,7 @@ export const appRouter = router({
       }),
     
     markAllAsRead: protectedProcedure.mutation(async ({ ctx }) => {
-      await db.markAllNotificationsAsRead(ctx.user.id);
+      await db.markAllNotificationsAsRead(ctx.auth.id);
       return { success: true };
     }),
   }),
@@ -883,7 +908,7 @@ export const appRouter = router({
     agenda: protectedProcedure
       .input(z.object({ date: z.date() }))
       .query(async ({ ctx, input }) => {
-        if (ctx.user.role !== 'admin' && ctx.user.role !== 'receptionist') {
+        if (ctx.auth.role !== 'admin' && ctx.auth.role !== 'receptionist') {
           throw new TRPCError({ code: 'FORBIDDEN', message: 'Receptionist access required' });
         }
         
@@ -891,7 +916,7 @@ export const appRouter = router({
         
         const enrichedBookings = await Promise.all(
           bookings.map(async (booking) => {
-            const room = await db.getRoomById(booking.roomId);
+            const room = await db.getRoomById(booking.roomId, ctx.auth.tenantId);
             const professional = await db.getUserById(booking.professionalId);
             
             return {
@@ -928,12 +953,20 @@ export const appRouter = router({
     listAllBookings: adminProcedure
       .input(z.object({ startDate: z.date().optional(), endDate: z.date().optional(), roomId: z.number().optional() }).optional())
       .query(async ({ ctx, input }) => {
-        const tenantId = (ctx.user as any).tenantId || 1;
+        const tenantId = ctx.auth.tenantId;
         const list = await db.getBookingsByTenant(tenantId, input?.startDate, input?.endDate);
         const filtered = input?.roomId ? list.filter((b: any) => b.roomId === input.roomId) : list;
         return Promise.all(filtered.map(async (b: any) => {
-          const [prof, room] = await Promise.all([db.getUserById(b.professionalId), db.getRoomById(b.roomId)]);
-          return { ...b, professionalName: (prof as any)?.name || `Profissional #${b.professionalId}`, roomName: (room as any)?.name || `Sala #${b.roomId}` };
+          const [prof, room] = await Promise.all([db.getUserById(b.professionalId), db.getRoomById(b.roomId, ctx.auth.tenantId)]);
+          return {
+            ...b,
+            // Descriptografa dados sensíveis para o admin (LGPD)
+            patientName: decrypt(b.patientName) ?? b.patientName,
+            patientPhone: decrypt(b.patientPhone),
+            privateNotes: decrypt(b.privateNotes),
+            professionalName: (prof as any)?.name || `Profissional #${b.professionalId}`,
+            roomName: (room as any)?.name || `Sala #${b.roomId}`,
+          };
         }));
       }),
 
@@ -966,7 +999,7 @@ export const appRouter = router({
     reportByRoom: adminProcedure
       .input(z.object({ roomId: z.number().optional(), startDate: z.date().optional(), endDate: z.date().optional() }).optional())
       .query(async ({ ctx, input }) => {
-        const tenantId = (ctx.user as any).tenantId || 1;
+        const tenantId = ctx.auth.tenantId;
         const allRooms = await db.getAllRooms(false);
         const allBookings = await db.getBookingsByTenant(tenantId, input?.startDate, input?.endDate);
         const rooms = input?.roomId ? allRooms.filter((r: any) => r.id === input.roomId) : allRooms;
@@ -1023,7 +1056,7 @@ export const appRouter = router({
   // ============= TENANT MANAGEMENT =============
   tenants: router({
     current: protectedProcedure.query(async ({ ctx }) => {
-      const tenantId = (ctx.user as any).tenantId || 1;
+      const tenantId = ctx.auth.tenantId;
       return db.getTenantById(tenantId);
     }),
     
@@ -1037,12 +1070,12 @@ export const appRouter = router({
         lateArrivalToleranceMinutes: z.number().min(0).max(60).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        const tenantId = (ctx.user as any).tenantId || 1;
+        const tenantId = ctx.auth.tenantId;
         await db.updateTenant(tenantId, input);
         await db.createAuditLog({
           tenantId,
-          userId: ctx.user.id,
-          userEmail: ctx.user.email,
+          userId: ctx.auth.id,
+          userEmail: ctx.auth.email,
           action: 'tenant.update',
           entityType: 'tenant',
           entityId: tenantId,
@@ -1054,23 +1087,23 @@ export const appRouter = router({
     professionals: adminProcedure
       .input(z.object({ status: z.string().optional() }).optional())
       .query(async ({ ctx, input }) => {
-        const tenantId = (ctx.user as any).tenantId || 1;
+        const tenantId = ctx.auth.tenantId;
         return db.getProfessionalsByTenant(tenantId, input?.status);
       }),
     
     approveProfessional: adminProcedure
       .input(z.object({ linkId: z.number() }))
       .mutation(async ({ ctx, input }) => {
-        const tenantId = (ctx.user as any).tenantId || 1;
+        const tenantId = ctx.auth.tenantId;
         await db.updateProfessionalTenantLink(input.linkId, {
           status: 'approved',
-          approvedBy: ctx.user.id,
+          approvedBy: ctx.auth.id,
           approvedAt: new Date(),
         });
         await db.createAuditLog({
           tenantId,
-          userId: ctx.user.id,
-          userEmail: ctx.user.email,
+          userId: ctx.auth.id,
+          userEmail: ctx.auth.email,
           action: 'professional.approve',
           entityType: 'professionalTenant',
           entityId: input.linkId,
@@ -1081,15 +1114,15 @@ export const appRouter = router({
     blockProfessional: adminProcedure
       .input(z.object({ linkId: z.number(), reason: z.string().optional() }))
       .mutation(async ({ ctx, input }) => {
-        const tenantId = (ctx.user as any).tenantId || 1;
+        const tenantId = ctx.auth.tenantId;
         await db.updateProfessionalTenantLink(input.linkId, {
           status: 'blocked',
           rejectionReason: input.reason || null,
         });
         await db.createAuditLog({
           tenantId,
-          userId: ctx.user.id,
-          userEmail: ctx.user.email,
+          userId: ctx.auth.id,
+          userEmail: ctx.auth.email,
           action: 'professional.block',
           entityType: 'professionalTenant',
           entityId: input.linkId,
@@ -1108,7 +1141,7 @@ export const appRouter = router({
         endDate: z.date(),
       }))
       .query(async ({ ctx, input }) => {
-        const tenantId = (ctx.user as any).tenantId || 1;
+        const tenantId = ctx.auth.tenantId;
         if (input.roomId) {
           return db.getRoomBlocks(input.roomId, input.startDate, input.endDate);
         }
@@ -1124,7 +1157,7 @@ export const appRouter = router({
         notes: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        const tenantId = (ctx.user as any).tenantId || 1;
+        const tenantId = ctx.auth.tenantId;
         
         // Check for booking conflicts
         const hasConflict = await db.checkBookingConflict(input.roomId, input.startTime, input.endTime);
@@ -1139,13 +1172,13 @@ export const appRouter = router({
           endTime: input.endTime,
           reason: input.reason,
           notes: input.notes || null,
-          createdBy: ctx.user.id,
+          createdBy: ctx.auth.id,
         });
         
         await db.createAuditLog({
           tenantId,
-          userId: ctx.user.id,
-          userEmail: ctx.user.email,
+          userId: ctx.auth.id,
+          userEmail: ctx.auth.email,
           action: 'room.block',
           entityType: 'room',
           entityId: input.roomId,
@@ -1158,12 +1191,12 @@ export const appRouter = router({
     delete: adminProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ ctx, input }) => {
-        const tenantId = (ctx.user as any).tenantId || 1;
+        const tenantId = ctx.auth.tenantId;
         await db.deleteRoomBlock(input.id);
         await db.createAuditLog({
           tenantId,
-          userId: ctx.user.id,
-          userEmail: ctx.user.email,
+          userId: ctx.auth.id,
+          userEmail: ctx.auth.email,
           action: 'room.unblock',
           entityType: 'roomBlock',
           entityId: input.id,
@@ -1177,25 +1210,25 @@ export const appRouter = router({
     register: adminProcedure
       .input(z.object({ bookingId: z.number() }))
       .mutation(async ({ ctx, input }) => {
-        const booking = await db.getBookingById(input.bookingId);
+        const booking = await db.getBookingById(input.bookingId, ctx.auth.tenantId);
         if (!booking) throw new TRPCError({ code: 'NOT_FOUND', message: 'Reserva não encontrada' });
         if (booking.status !== 'confirmed') {
           throw new TRPCError({ code: 'BAD_REQUEST', message: 'Apenas reservas confirmadas podem ser marcadas como no-show' });
         }
         
-        const tenantId = (ctx.user as any).tenantId || 1;
+        const tenantId = ctx.auth.tenantId;
         const before = JSON.stringify({ status: booking.status });
         
         await db.updateBooking(input.bookingId, {
           status: 'no_show',
           noShowRegisteredAt: new Date(),
-          noShowRegisteredBy: ctx.user.id,
+          noShowRegisteredBy: ctx.auth.id,
         });
         
         await db.createAuditLog({
           tenantId,
-          userId: ctx.user.id,
-          userEmail: ctx.user.email,
+          userId: ctx.auth.id,
+          userEmail: ctx.auth.email,
           action: 'booking.no_show',
           entityType: 'booking',
           entityId: input.bookingId,
@@ -1222,7 +1255,7 @@ export const appRouter = router({
     complete: adminProcedure
       .input(z.object({ bookingId: z.number() }))
       .mutation(async ({ ctx, input }) => {
-        const booking = await db.getBookingById(input.bookingId);
+        const booking = await db.getBookingById(input.bookingId, ctx.auth.tenantId);
         if (!booking) throw new TRPCError({ code: 'NOT_FOUND', message: 'Reserva não encontrada' });
         if (booking.status !== 'confirmed') {
           throw new TRPCError({ code: 'BAD_REQUEST', message: 'Apenas reservas confirmadas podem ser completadas' });
@@ -1240,8 +1273,8 @@ export const appRouter = router({
   // ============= WAITLIST =============
   waitlist: router({
     list: professionalProcedure.query(async ({ ctx }) => {
-      const tenantId = (ctx.user as any).tenantId || 1;
-      return db.getWaitlistByProfessional(ctx.user.id, tenantId);
+      const tenantId = ctx.auth.tenantId;
+      return db.getWaitlistByProfessional(ctx.auth.id, tenantId);
     }),
     
     add: publicProcedure
@@ -1315,7 +1348,7 @@ export const appRouter = router({
     list: adminProcedure
       .input(z.object({ limit: z.number().optional() }).optional())
       .query(async ({ ctx, input }) => {
-        const tenantId = (ctx.user as any).tenantId || 1;
+        const tenantId = ctx.auth.tenantId;
         return db.getAuditLogs(tenantId, input?.limit || 100);
       }),
   }),
@@ -1355,13 +1388,54 @@ export const appRouter = router({
         const bookings = await db.getBookingsByTenant(input.tenantId, startOfDay, endOfDay);
         const blocks = await db.getAllRoomBlocksByTenant(input.tenantId, startOfDay, endOfDay);
         
-        return { rooms, bookings, blocks };
+        // Endpoint público: NUNCA expor nomes, notas ou dados sensíveis.
+        // Retorna apenas os slots livres por sala (formato seguro para portal público).
+        const OPEN_HOUR = 7;
+        const CLOSE_HOUR = 21;
+        const SLOT_MINUTES = 60;
+        
+        const safeRooms = rooms.map((room: any) => ({
+          id: room.id,
+          name: room.name,
+          pricePerHour: room.pricePerHour,
+          capacity: room.capacity,
+        }));
+        
+        const availableSlots: Record<number, string[]> = {};
+        for (const room of rooms) {
+          const slots: string[] = [];
+          for (let h = OPEN_HOUR; h < CLOSE_HOUR; h++) {
+            const slotStart = new Date(input.date);
+            slotStart.setHours(h, 0, 0, 0);
+            const slotEnd = new Date(input.date);
+            slotEnd.setHours(h + SLOT_MINUTES / 60, 0, 0, 0);
+            
+            const occupied = bookings.some((b: any) =>
+              b.roomId === room.id &&
+              b.status === 'confirmed' &&
+              new Date(b.startTime) < slotEnd &&
+              new Date(b.endTime) > slotStart
+            );
+            const blocked = blocks.some((bl: any) =>
+              bl.roomId === room.id &&
+              new Date(bl.startTime) < slotEnd &&
+              new Date(bl.endTime) > slotStart
+            );
+            
+            if (!occupied && !blocked) {
+              slots.push(`${String(h).padStart(2, '0')}:00`);
+            }
+          }
+          availableSlots[room.id] = slots;
+        }
+        
+        return { rooms: safeRooms, availableSlots };
       }),
   }),
 
   apiKeys: router({
     list: professionalProcedure.query(async ({ ctx }) => {
-      return db.getUserApiKeys(ctx.user.id);
+      return db.getUserApiKeys(ctx.auth.id);
     }),
     
     create: professionalProcedure
@@ -1375,7 +1449,7 @@ export const appRouter = router({
         const key = `sk_${nanoid(32)}`;
         
         await db.createApiKey({
-          userId: ctx.user.id,
+          userId: ctx.auth.id,
           name: input.name,
           key,
           canReadBookings: input.canReadBookings,
