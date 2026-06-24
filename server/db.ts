@@ -1015,3 +1015,107 @@ export async function getProfessionalAppointmentDuration(professionalId: number)
   }
   return 60;
 }
+
+// ============= STAFF (Internal Users: receptionist, financial) =============
+
+export async function getStaffByTenant(tenantId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({
+    id: users.id,
+    name: users.name,
+    email: users.email,
+    role: users.role,
+    createdAt: users.createdAt,
+    permCanViewBookings: users.permCanViewBookings,
+    permCanViewProfessionals: users.permCanViewProfessionals,
+    permCanViewRooms: users.permCanViewRooms,
+    permCanCheckIn: users.permCanCheckIn,
+    permCanManagePatients: users.permCanManagePatients,
+  })
+  .from(users)
+  .where(and(
+    eq(users.tenantId, tenantId),
+    sql`${users.role} IN ('receptionist','financial')`
+  ))
+  .orderBy(users.name);
+}
+
+export async function createStaffUser(data: {
+  name: string;
+  email: string;
+  passwordHash: string;
+  role: 'receptionist' | 'financial';
+  tenantId: number;
+  permCanViewBookings: boolean;
+  permCanViewProfessionals: boolean;
+  permCanViewRooms: boolean;
+  permCanCheckIn: boolean;
+  permCanManagePatients: boolean;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error('DB unavailable');
+  await db.insert(users).values({
+    name: data.name,
+    email: data.email,
+    passwordHash: data.passwordHash,
+    role: data.role,
+    tenantId: data.tenantId,
+    isActive: true,
+    permCanViewBookings: data.permCanViewBookings,
+    permCanViewProfessionals: data.permCanViewProfessionals,
+    permCanViewRooms: data.permCanViewRooms,
+    permCanCheckIn: data.permCanCheckIn,
+    permCanManagePatients: data.permCanManagePatients,
+  } as any);
+}
+
+export async function updateStaffUser(id: number, tenantId: number, data: Partial<{
+  name: string;
+  role: 'receptionist' | 'financial';
+  isActive: boolean;
+  passwordHash: string;
+  permCanViewBookings: boolean;
+  permCanViewProfessionals: boolean;
+  permCanViewRooms: boolean;
+  permCanCheckIn: boolean;
+  permCanManagePatients: boolean;
+}>) {
+  const db = await getDb();
+  if (!db) throw new Error('DB unavailable');
+  await db.update(users)
+    .set(data as any)
+    .where(and(eq(users.id, id), eq(users.tenantId, tenantId)));
+}
+
+export async function deleteStaffUser(id: number, tenantId: number) {
+  const db = await getDb();
+  if (!db) throw new Error('DB unavailable');
+  await db.delete(users)
+    .where(and(eq(users.id, id), eq(users.tenantId, tenantId)));
+}
+
+// ============= RECEPTION =============
+
+export async function getReceptionBookings(tenantId: number, startMs: number, endMs: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({
+    id: bookings.id,
+    startTime: bookings.startTime,
+    endTime: bookings.endTime,
+    status: bookings.status,
+    receptionNotes: bookings.receptionNotes,
+    roomId: bookings.roomId,
+    professionalId: bookings.professionalId,
+    patientName: bookings.patientName,
+  })
+  .from(bookings)
+  .where(and(
+    eq(bookings.tenantId, tenantId),
+    gte(bookings.startTime, new Date(startMs)),
+    lte(bookings.startTime, new Date(endMs)),
+    sql`${bookings.status} != 'cancelled'`
+  ))
+  .orderBy(bookings.startTime);
+}

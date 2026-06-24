@@ -45,6 +45,11 @@ const getMenuItems = (role: string) => {
       { icon: Settings, label: "Configurações", path: "/admin/settings" },
     ];
   }
+  if (role === 'receptionist' || role === 'financial') {
+    return [
+      { icon: CalendarDays, label: "Painel de Recepção", path: "/reception" },
+    ];
+  }
   return [
     { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
     { icon: Building2, label: "Salas", path: "/rooms" },

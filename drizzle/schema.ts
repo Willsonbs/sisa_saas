@@ -84,6 +84,16 @@ export const users = mysqlTable("users", {
   cpf: varchar("cpf", { length: 14 }),
   address: text("address"),
   
+  // Internal user (receptionist/financial) permission flags
+  permCanViewBookings: boolean("permCanViewBookings").default(true).notNull(),
+  permCanViewProfessionals: boolean("permCanViewProfessionals").default(true).notNull(),
+  permCanViewRooms: boolean("permCanViewRooms").default(true).notNull(),
+  permCanCheckIn: boolean("permCanCheckIn").default(true).notNull(),
+  permCanManagePatients: boolean("permCanManagePatients").default(false).notNull(),
+
+  // Password hash for email/password login (staff users)
+  passwordHash: varchar("passwordHash", { length: 255 }),
+
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),

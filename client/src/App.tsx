@@ -32,6 +32,7 @@ import SisaPlans from "./pages/sisa/SisaPlans";
 import SisaBilling from "./pages/sisa/SisaBilling";
 import SisaUsers from "./pages/sisa/SisaUsers";
 import SisaAudit from "./pages/sisa/SisaAudit";
+import ReceptionPanel from "./pages/reception/ReceptionPanel";
 
 function Router() {
   return (
@@ -78,6 +79,9 @@ function Router() {
       <Route path="/sisa/billing" component={SisaBilling} />
       <Route path="/sisa/users" component={SisaUsers} />
       <Route path="/sisa/audit" component={SisaAudit} />
+
+      {/* Reception Routes */}
+      <Route path="/reception" component={ReceptionPanel} />
 
       {/* Fallback */}
       <Route path="/404" component={NotFound} />
