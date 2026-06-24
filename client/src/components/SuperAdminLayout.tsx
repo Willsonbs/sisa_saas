@@ -16,7 +16,7 @@ const SISA_LIGHT = "#EDE8E3";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard",       path: "/sisa/dashboard" },
-  { icon: Building2,       label: "Tenants",         path: "/sisa/tenants" },
+  { icon: Building2,       label: "Clientes",        path: "/sisa/tenants" },
   { icon: Settings,        label: "Planos",          path: "/sisa/plans" },
   { icon: CreditCard,      label: "Financeiro",      path: "/sisa/billing" },
   { icon: Users,           label: "Usuários",        path: "/sisa/users" },

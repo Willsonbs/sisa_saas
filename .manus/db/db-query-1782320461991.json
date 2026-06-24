@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE tenants SET\n  legalName = 'Evda Solucoes em Gestao Ltda',\n  document = '32546982000108',\n  email = 'onlife@example.com',\n  phone = '(81) 98128-2023',\n  addressStreet = 'Rua Artur Antônio da Silva',\n  addressNumber = '91',\n  addressComplement = NULL,\n  addressNeighborhood = 'Maurício de Nassau',\n  addressCity = 'CARUARU',\n  addressState = 'PE',\n  addressZip = NULL\nWHERE id = 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2K2nZhchkWvioe9.44e5ea8f5c60 --database BKg3JWXSVAysuyURANpvoX --execute UPDATE tenants SET\n  legalName = 'Evda Solucoes em Gestao Ltda',\n  document = '32546982000108',\n  email = 'onlife@example.com',\n  phone = '(81) 98128-2023',\n  addressStreet = 'Rua Artur Antônio da Silva',\n  addressNumber = '91',\n  addressComplement = NULL,\n  addressNeighborhood = 'Maurício de Nassau',\n  addressCity = 'CARUARU',\n  addressState = 'PE',\n  addressZip = NULL\nWHERE id = 1;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 577
+}

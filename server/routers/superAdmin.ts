@@ -201,6 +201,47 @@ export const superAdminRouter = router({
       return { success: true, tenantId: input.tenantId };
     }),
 
+  // ── Update tenant cadastral data ────────────────────────────────────────────
+  updateTenant: superAdminProcedure
+    .input(z.object({
+      id: z.number(),
+      name: z.string().min(2).optional(),
+      legalName: z.string().optional().nullable(),
+      document: z.string().optional().nullable(),
+      email: z.string().email().optional().nullable(),
+      phone: z.string().optional().nullable(),
+      addressStreet: z.string().optional().nullable(),
+      addressNumber: z.string().optional().nullable(),
+      addressComplement: z.string().optional().nullable(),
+      addressNeighborhood: z.string().optional().nullable(),
+      addressCity: z.string().optional().nullable(),
+      addressState: z.string().max(2).optional().nullable(),
+      addressZip: z.string().optional().nullable(),
+      plan: z.enum(["starter", "pro", "business", "enterprise"]).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB unavailable");
+
+      const { id, ...fields } = input;
+      const [before] = await db.select().from(tenants).where(eq(tenants.id, id));
+      if (!before) throw new Error("Tenant não encontrado");
+
+      await db.update(tenants).set({ ...fields }).where(eq(tenants.id, id));
+
+      await logAudit({
+        userId: ctx.user.id,
+        userEmail: ctx.user.email,
+        action: "tenant.update",
+        entityType: "tenant",
+        entityId: id,
+        before,
+        after: fields,
+      });
+
+      return { success: true };
+    }),
+
   // ── Plans CRUD ─────────────────────────────────────────────────────────────
   listPlans: superAdminProcedure.query(async () => {
     const db = await getDb();

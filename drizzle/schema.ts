@@ -8,9 +8,24 @@ export const tenants = mysqlTable("tenants", {
   name: varchar("name", { length: 200 }).notNull(),
   slug: varchar("slug", { length: 100 }).notNull().unique(), // subdomínio: slug.sisa.com.br
   
+  // Razão Social / Documento
+  legalName: varchar("legalName", { length: 200 }), // Razão Social
+  document: varchar("document", { length: 18 }),    // CPF ou CNPJ
+
   // Contact
   email: varchar("email", { length: 320 }),
   phone: varchar("phone", { length: 20 }),
+
+  // Endereço detalhado
+  addressStreet: varchar("addressStreet", { length: 200 }),
+  addressNumber: varchar("addressNumber", { length: 20 }),
+  addressComplement: varchar("addressComplement", { length: 100 }),
+  addressNeighborhood: varchar("addressNeighborhood", { length: 100 }),
+  addressCity: varchar("addressCity", { length: 100 }),
+  addressState: varchar("addressState", { length: 2 }),
+  addressZip: varchar("addressZip", { length: 10 }),
+
+  // Legacy single-field address (kept for compatibility)
   address: text("address"),
   
   // Plan
