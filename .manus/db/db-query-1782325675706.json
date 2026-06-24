@@ -1,0 +1,19 @@
+{
+  "query": "SELECT id, name, email, role, tenantId, passwordHash IS NOT NULL as hasHash, LENGTH(passwordHash) as hashLen FROM users WHERE email = 'recepcao@onlife.com.br' LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2K2nZhchkWvioe9.44e5ea8f5c60 --database BKg3JWXSVAysuyURANpvoX --execute SELECT id, name, email, role, tenantId, passwordHash IS NOT NULL as hasHash, LENGTH(passwordHash) as hashLen FROM users WHERE email = 'recepcao@onlife.com.br' LIMIT 1;",
+  "rows": [
+    {
+      "id": "720001",
+      "name": "Recepção central",
+      "email": "recepcao@onlife.com.br",
+      "role": "receptionist",
+      "tenantId": "1",
+      "hasHash": "1",
+      "hashLen": "60"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\trole\ttenantId\thasHash\thashLen\n720001\tRecepção central\trecepcao@onlife.com.br\treceptionist\t1\t1\t60\n",
+  "stderr": "",
+  "execution_time_ms": 1212
+}

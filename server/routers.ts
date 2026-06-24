@@ -107,21 +107,31 @@ export const appRouter = router({
         const { verifyPassword, generateToken } = await import('./auth');
         const { getSessionCookieOptions } = await import('./_core/cookies');
         
-        // Buscar usu\u00e1rio
+        // Busc        // Buscar usuário
         const user = await db.getUserByEmail(input.email);
-        if (!user || !user.password) {
+        if (!user) {
           throw new TRPCError({ 
             code: 'UNAUTHORIZED', 
-            message: 'Email ou senha inv\u00e1lidos' 
+            message: 'Email ou senha inválidos' 
           });
         }
         
-        // Verificar senha
-        const isValid = await verifyPassword(input.password, user.password);
+        // Usuários internos (receptionist, financial) usam passwordHash
+        // Profissionais/admins criados via cadastro usam password
+        const hashToVerify = user.passwordHash ?? user.password;
+        if (!hashToVerify) {
+          throw new TRPCError({ 
+            code: 'UNAUTHORIZED', 
+            message: 'Email ou senha inválidos' 
+          });
+        }
+        
+        // Verificar senha (bcrypt funciona para ambos os campos)
+        const isValid = await verifyPassword(input.password, hashToVerify);
         if (!isValid) {
           throw new TRPCError({ 
             code: 'UNAUTHORIZED', 
-            message: 'Email ou senha inv\u00e1lidos' 
+            message: 'Email ou senha inválidos' 
           });
         }
         
