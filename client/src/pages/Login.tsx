@@ -21,7 +21,9 @@ export default function Login() {
   // Redirecionar se já estiver logado
   useEffect(() => {
     if (!loading && isAuthenticated && user) {
-      setLocation(user.role === 'admin' ? '/admin' : '/dashboard');
+      if (user.role === 'super_admin') setLocation('/sisa/dashboard');
+      else if (user.role === 'admin') setLocation('/admin');
+      else setLocation('/dashboard');
     }
   }, [isAuthenticated, user, loading, setLocation]);
 
@@ -29,7 +31,9 @@ export default function Login() {
     onSuccess: (data) => {
       toast.success("Login realizado com sucesso!");
       setTimeout(() => {
-        if (data.user.role === 'admin') {
+        if (data.user.role === 'super_admin') {
+          window.location.href = '/sisa/dashboard';
+        } else if (data.user.role === 'admin') {
           window.location.href = '/admin';
         } else {
           window.location.href = '/dashboard';

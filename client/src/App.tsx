@@ -25,6 +25,13 @@ import TenantSettings from "./pages/admin/TenantSettings";
 import RoomBlocks from "./pages/admin/RoomBlocks";
 import AuditLogs from "./pages/admin/AuditLogs";
 import ProfessionalSettings from "./pages/professional/Settings";
+import SisaDashboard from "./pages/sisa/SisaDashboard";
+import SisaTenants from "./pages/sisa/SisaTenants";
+import SisaTenantDetails from "./pages/sisa/SisaTenantDetails";
+import SisaPlans from "./pages/sisa/SisaPlans";
+import SisaBilling from "./pages/sisa/SisaBilling";
+import SisaUsers from "./pages/sisa/SisaUsers";
+import SisaAudit from "./pages/sisa/SisaAudit";
 
 function Router() {
   return (
@@ -63,6 +70,15 @@ function Router() {
       {/* Public Patient Portal */}
       <Route path="/p/:slug" component={PatientPortal} />
       
+      {/* Super Admin (SISA Platform) Routes */}
+      <Route path="/sisa/dashboard" component={SisaDashboard} />
+      <Route path="/sisa/tenants/:id" component={SisaTenantDetails} />
+      <Route path="/sisa/tenants" component={SisaTenants} />
+      <Route path="/sisa/plans" component={SisaPlans} />
+      <Route path="/sisa/billing" component={SisaBilling} />
+      <Route path="/sisa/users" component={SisaUsers} />
+      <Route path="/sisa/audit" component={SisaAudit} />
+
       {/* Fallback */}
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

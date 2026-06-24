@@ -45,7 +45,7 @@ export const adminProcedure = t.procedure.use(
   t.middleware(async opts => {
     const { ctx, next } = opts;
 
-    if (!ctx.user || ctx.user.role !== 'admin') {
+    if (!ctx.user || (ctx.user.role !== 'admin' && ctx.user.role !== 'super_admin')) {
       throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
     }
 
@@ -62,6 +62,34 @@ export const adminProcedure = t.procedure.use(
         ...ctx,
         user: ctx.user,
         auth,
+      },
+    });
+  }),
+);
+
+/**
+ * Procedure exclusiva para SUPER_ADMIN (proprietário da plataforma SISA).
+ * Não exige tenantId — opera em escopo global.
+ */
+export const superAdminProcedure = t.procedure.use(
+  t.middleware(async opts => {
+    const { ctx, next } = opts;
+
+    if (!ctx.user || ctx.user.role !== 'super_admin') {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Acesso exclusivo ao proprietário da plataforma SISA." });
+    }
+
+    return next({
+      ctx: {
+        ...ctx,
+        user: ctx.user,
+        auth: {
+          id: ctx.user.id,
+          email: ctx.user.email,
+          role: 'super_admin' as const,
+          tenantId: 0,
+          name: ctx.user.name ?? null,
+        },
       },
     });
   }),

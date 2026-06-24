@@ -17,6 +17,7 @@ import { storagePut } from "./storage";
 import { nanoid } from "nanoid";
 import { encrypt, decrypt } from "./_core/encryption";
 import { logPatientAccess, getClientIp } from "./_core/patientAccessLog";
+import { superAdminRouter } from "./routers/superAdmin";
 
 // Admin-only procedure
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -36,6 +37,7 @@ const professionalProcedure = protectedProcedure.use(({ ctx, next }) => {
 
 export const appRouter = router({
   system: systemRouter,
+  superAdmin: superAdminRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

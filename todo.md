@@ -179,3 +179,23 @@
 - [x] Criar tabela patient_access_logs para trilha de acesso LGPD
 - [x] Criar helper logPatientAccess e registrar acesso em bookings.getById
 - [x] Sanitizar portal.getAvailableSlots: retorna apenas slots livres (sem nomes/horários/notas)
+
+## Sprint 10 — Painel Super Admin (SISA)
+- [x] Role super_admin no schema (enum users)
+- [x] Tabelas plans e subscriptions no banco
+- [x] Migração db:push aplicada com sucesso
+- [x] shared/userContext.ts atualizado com super_admin
+- [x] superAdminProcedure no _core/trpc.ts
+- [x] db.ts: owner recebe role super_admin automaticamente
+- [x] superAdminRouter: dashboard, listTenants, getTenant, toggleTenantStatus, impersonateTenant, listPlans, createPlan, updatePlan, listSubscriptions, billing, listUsers, listAuditLogs
+- [x] SuperAdminLayout.tsx com sidebar dedicada
+- [x] Login.tsx: redirecionamento automático para /sisa/dashboard
+- [x] SisaDashboard.tsx com KPIs e gráficos de crescimento
+- [x] SisaTenants.tsx com listagem, filtros e ações
+- [x] SisaTenantDetails.tsx com detalhes completos
+- [x] SisaPlans.tsx com CRUD de planos
+- [x] SisaBilling.tsx com visão financeira
+- [x] SisaUsers.tsx com listagem de todos os usuários
+- [x] SisaAudit.tsx com log de auditoria expandível
+- [x] App.tsx: rotas /sisa/* registradas
+- [x] Testes Vitest: 11 testes de controle de acesso passando (32 total)
