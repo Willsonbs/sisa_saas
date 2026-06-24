@@ -4,12 +4,15 @@ import { useParams, Link } from "wouter";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Building2, Users, DoorOpen, CalendarCheck, Lock, Unlock, Pencil, Check, X } from "lucide-react";
+import {
+  ArrowLeft, Building2, Users, DoorOpen, CalendarCheck,
+  Lock, Unlock, Pencil, Check, X, Hash, Calendar, Tag,
+  FileText, Phone, Mail, MapPin,
+} from "lucide-react";
 
 const TERRACOTTA = "#7C5C4A";
 const FOREST     = "#3D3D2E";
@@ -85,7 +88,10 @@ function toForm(data: TenantData): EditForm {
   };
 }
 
-function Field({ label, value, editing, name, form, setForm, type = "text" }: {
+/** Renders a read-only value or an editable input */
+function Field({
+  label, value, editing, name, form, setForm, type = "text", maxLength, className = "",
+}: {
   label: string;
   value: string;
   editing: boolean;
@@ -93,20 +99,44 @@ function Field({ label, value, editing, name, form, setForm, type = "text" }: {
   form: EditForm;
   setForm: (f: EditForm) => void;
   type?: string;
+  maxLength?: number;
+  className?: string;
 }) {
   return (
-    <div>
-      <dt className="text-xs text-muted-foreground mb-0.5">{label}</dt>
+    <div className={className}>
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-0.5">{label}</p>
       {editing ? (
         <Input
           type={type}
+          maxLength={maxLength}
           value={form[name] as string}
           onChange={e => setForm({ ...form, [name]: e.target.value })}
-          className="h-7 text-sm"
+          className="h-8 text-sm"
         />
       ) : (
-        <dd className="text-sm font-medium text-[#3D3D2E]">{value || <span className="text-muted-foreground italic">—</span>}</dd>
+        <p className="text-sm font-medium text-[#3D3D2E]">
+          {value || <span className="text-muted-foreground italic font-normal">—</span>}
+        </p>
       )}
+    </div>
+  );
+}
+
+/** Section wrapper with icon */
+function Section({ icon: Icon, title, children }: {
+  icon: React.ElementType;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <Icon className="h-4 w-4 shrink-0" style={{ color: TERRACOTTA }} />
+        <h3 className="text-xs font-semibold uppercase tracking-widest" style={{ color: TERRACOTTA }}>{title}</h3>
+      </div>
+      <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+        {children}
+      </div>
     </div>
   );
 }
@@ -116,14 +146,13 @@ export default function SisaTenantDetails() {
   const tenantId = parseInt(id ?? "0");
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<EditForm | null>(null);
+  const [formInitialized, setFormInitialized] = useState(false);
 
   const { data, isLoading, refetch } = trpc.superAdmin.getTenant.useQuery(
     { id: tenantId },
     { enabled: tenantId > 0 }
   );
 
-  // Initialize form when data loads
-  const [formInitialized, setFormInitialized] = useState(false);
   if (data && !formInitialized) {
     setForm(toForm(data));
     setFormInitialized(true);
@@ -168,7 +197,9 @@ export default function SisaTenantDetails() {
     return (
       <SuperAdminLayout>
         <div className="space-y-4 max-w-3xl">
-          {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-24 bg-muted animate-pulse rounded-lg" />)}
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-24 bg-muted animate-pulse rounded-lg" />
+          ))}
         </div>
       </SuperAdminLayout>
     );
@@ -185,6 +216,7 @@ export default function SisaTenantDetails() {
   return (
     <SuperAdminLayout>
       <div className="space-y-6 max-w-3xl">
+
         {/* Back */}
         <Link href="/sisa/tenants">
           <Button variant="ghost" size="sm" className="gap-1.5 -ml-2">
@@ -194,14 +226,19 @@ export default function SisaTenantDetails() {
         </Link>
 
         {/* Header */}
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold" style={{ color: FOREST }}>{data.name}</h1>
-            {data.legalName && <p className="text-sm text-muted-foreground">{data.legalName}</p>}
+            {data.legalName && (
+              <p className="text-sm text-muted-foreground mt-0.5">{data.legalName}</p>
+            )}
             <p className="text-xs text-muted-foreground">{data.slug}.sisa.com.br</p>
           </div>
-          <div className="flex items-center gap-2">
-            <Badge variant={data.isActive ? "default" : "secondary"} className={data.isActive ? "bg-green-100 text-green-700 hover:bg-green-100" : ""}>
+          <div className="flex items-center gap-2 shrink-0">
+            <Badge
+              variant={data.isActive ? "default" : "secondary"}
+              className={data.isActive ? "bg-green-100 text-green-700 hover:bg-green-100 border-green-200" : ""}
+            >
               {data.isActive ? "Ativo" : "Inativo"}
             </Badge>
             <Button
@@ -209,10 +246,11 @@ export default function SisaTenantDetails() {
               size="sm"
               className="gap-1.5"
               onClick={() => toggleMutation.mutate({ id: data.id, isActive: !data.isActive })}
+              disabled={toggleMutation.isPending}
             >
               {data.isActive
-                ? <><Lock className="h-3.5 w-3.5 text-red-500" /> Bloquear</>
-                : <><Unlock className="h-3.5 w-3.5 text-green-600" /> Ativar</>}
+                ? <><Lock className="h-3.5 w-3.5 text-red-500" />Bloquear</>
+                : <><Unlock className="h-3.5 w-3.5 text-green-600" />Ativar</>}
             </Button>
           </div>
         </div>
@@ -239,22 +277,27 @@ export default function SisaTenantDetails() {
           ))}
         </div>
 
-        {/* Cadastral data */}
+        {/* ── Dados Cadastrais ── */}
         <Card className="border border-[#D8D0C8]">
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base" style={{ color: FOREST }}>Dados Cadastrais</CardTitle>
               {!editing ? (
                 <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setEditing(true)}>
-                  <Pencil className="h-3.5 w-3.5" /> Editar
+                  <Pencil className="h-3.5 w-3.5" />Editar
                 </Button>
               ) : (
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" className="gap-1.5" onClick={handleCancelEdit}>
-                    <X className="h-3.5 w-3.5" /> Cancelar
+                    <X className="h-3.5 w-3.5" />Cancelar
                   </Button>
-                  <Button size="sm" className="gap-1.5" style={{ backgroundColor: TERRACOTTA, color: "white" }}
-                    onClick={handleSave} disabled={updateMutation.isPending}>
+                  <Button
+                    size="sm"
+                    className="gap-1.5"
+                    style={{ backgroundColor: TERRACOTTA, color: "white" }}
+                    onClick={handleSave}
+                    disabled={updateMutation.isPending}
+                  >
                     <Check className="h-3.5 w-3.5" />
                     {updateMutation.isPending ? "Salvando..." : "Salvar"}
                   </Button>
@@ -262,32 +305,36 @@ export default function SisaTenantDetails() {
               )}
             </div>
           </CardHeader>
-          <CardContent>
-            <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-              {/* Row: ID + Cadastro */}
+
+          <CardContent className="space-y-7">
+
+            {/* ── Seção: Identificação ── */}
+            <Section icon={Hash} title="Identificação">
+              {/* ID — somente leitura */}
               <div>
-                <dt className="text-xs text-muted-foreground mb-0.5">ID</dt>
-                <dd className="text-sm font-medium text-[#3D3D2E]">{data.id}</dd>
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-0.5">ID</p>
+                <p className="text-sm font-medium text-[#3D3D2E]">{data.id}</p>
               </div>
+
+              {/* Datas — somente leitura */}
               <div>
-                <dt className="text-xs text-muted-foreground mb-0.5">Data de Cadastro</dt>
-                <dd className="text-sm font-medium text-[#3D3D2E]">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-0.5">Cadastro / Atualização</p>
+                <p className="text-sm font-medium text-[#3D3D2E]">
                   {new Date(data.createdAt).toLocaleDateString("pt-BR")}
                   <span className="text-muted-foreground text-xs ml-2">
                     Atualizado: {new Date(data.updatedAt).toLocaleString("pt-BR")}
                   </span>
-                </dd>
+                </p>
               </div>
 
-              {/* Nome fantasia */}
               <Field label="Nome Fantasia *" value={data.name} editing={editing} name="name" form={form} setForm={setForm} />
 
               {/* Plano */}
               <div>
-                <dt className="text-xs text-muted-foreground mb-0.5">Plano</dt>
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-0.5">Plano</p>
                 {editing ? (
                   <Select value={form.plan} onValueChange={v => setForm({ ...form, plan: v as EditForm["plan"] })}>
-                    <SelectTrigger className="h-7 text-sm">
+                    <SelectTrigger className="h-8 text-sm">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -298,103 +345,117 @@ export default function SisaTenantDetails() {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <dd className="text-sm font-medium text-[#3D3D2E]">{planLabel[data.plan] ?? data.plan}</dd>
+                  <p className="text-sm font-medium text-[#3D3D2E]">{planLabel[data.plan] ?? data.plan}</p>
                 )}
               </div>
 
-              {/* Razão Social */}
               <Field label="Nome/Razão Social" value={data.legalName ?? ""} editing={editing} name="legalName" form={form} setForm={setForm} />
+              <Field label="CPF/CNPJ" value={data.document ?? ""} editing={editing} name="document" form={form} setForm={setForm} maxLength={18} />
+            </Section>
 
-              {/* CNPJ/CPF */}
-              <Field label="CPF/CNPJ" value={data.document ?? ""} editing={editing} name="document" form={form} setForm={setForm} />
+            <hr className="border-[#E8E2DC]" />
 
-              {/* Email */}
+            {/* ── Seção: Contato ── */}
+            <Section icon={Phone} title="Contato">
               <Field label="E-mail" value={data.email ?? ""} editing={editing} name="email" form={form} setForm={setForm} type="email" />
-
-              {/* Telefone */}
               <Field label="Telefone" value={data.phone ?? ""} editing={editing} name="phone" form={form} setForm={setForm} />
+            </Section>
 
-              {/* Logradouro */}
-              <Field label="Logradouro" value={data.addressStreet ?? ""} editing={editing} name="addressStreet" form={form} setForm={setForm} />
+            <hr className="border-[#E8E2DC]" />
 
-              {/* Número */}
+            {/* ── Seção: Endereço ── */}
+            <Section icon={MapPin} title="Endereço">
+              <Field label="Logradouro" value={data.addressStreet ?? ""} editing={editing} name="addressStreet" form={form} setForm={setForm} className="col-span-2 grid-cols-none" />
+
               <Field label="Número" value={data.addressNumber ?? ""} editing={editing} name="addressNumber" form={form} setForm={setForm} />
-
-              {/* Complemento */}
               <Field label="Complemento" value={data.addressComplement ?? ""} editing={editing} name="addressComplement" form={form} setForm={setForm} />
 
-              {/* Bairro */}
               <Field label="Bairro" value={data.addressNeighborhood ?? ""} editing={editing} name="addressNeighborhood" form={form} setForm={setForm} />
+              <Field label="CEP" value={data.addressZip ?? ""} editing={editing} name="addressZip" form={form} setForm={setForm} maxLength={9} />
 
-              {/* Município + UF */}
-              <div className="grid grid-cols-3 gap-2 md:col-span-2">
+              {/* Município + UF na mesma linha */}
+              <div className="col-span-2 grid grid-cols-3 gap-4">
                 <div className="col-span-2">
-                  <dt className="text-xs text-muted-foreground mb-0.5">Município</dt>
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-0.5">Município</p>
                   {editing ? (
-                    <Input value={form.addressCity} onChange={e => setForm({ ...form, addressCity: e.target.value })} className="h-7 text-sm" />
+                    <Input
+                      value={form.addressCity}
+                      onChange={e => setForm({ ...form, addressCity: e.target.value })}
+                      className="h-8 text-sm"
+                    />
                   ) : (
-                    <dd className="text-sm font-medium text-[#3D3D2E]">{data.addressCity || <span className="text-muted-foreground italic">—</span>}</dd>
+                    <p className="text-sm font-medium text-[#3D3D2E]">
+                      {data.addressCity || <span className="text-muted-foreground italic font-normal">—</span>}
+                    </p>
                   )}
                 </div>
                 <div>
-                  <dt className="text-xs text-muted-foreground mb-0.5">UF</dt>
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-0.5">UF</p>
                   {editing ? (
-                    <Input value={form.addressState} maxLength={2} onChange={e => setForm({ ...form, addressState: e.target.value.toUpperCase() })} className="h-7 text-sm" />
+                    <Input
+                      value={form.addressState}
+                      maxLength={2}
+                      onChange={e => setForm({ ...form, addressState: e.target.value.toUpperCase() })}
+                      className="h-8 text-sm"
+                    />
                   ) : (
-                    <dd className="text-sm font-medium text-[#3D3D2E]">{data.addressState || <span className="text-muted-foreground italic">—</span>}</dd>
+                    <p className="text-sm font-medium text-[#3D3D2E]">
+                      {data.addressState || <span className="text-muted-foreground italic font-normal">—</span>}
+                    </p>
                   )}
                 </div>
               </div>
+            </Section>
 
-              {/* CEP */}
-              <Field label="CEP" value={data.addressZip ?? ""} editing={editing} name="addressZip" form={form} setForm={setForm} />
-            </dl>
           </CardContent>
         </Card>
 
-        {/* Policies */}
+        {/* ── Políticas ── */}
         <Card className="border border-[#D8D0C8]">
           <CardHeader className="pb-2">
             <CardTitle className="text-base" style={{ color: FOREST }}>Políticas</CardTitle>
           </CardHeader>
           <CardContent>
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+            <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
               <div>
-                <dt className="text-xs text-muted-foreground">Janela de Cancelamento</dt>
-                <dd className="font-medium text-[#3D3D2E]">{data.cancellationWindowMinutes} min</dd>
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-0.5">Janela de Cancelamento</p>
+                <p className="font-medium text-[#3D3D2E]">{data.cancellationWindowMinutes} min</p>
               </div>
               <div>
-                <dt className="text-xs text-muted-foreground">Tolerância de Atraso</dt>
-                <dd className="font-medium text-[#3D3D2E]">{data.lateArrivalToleranceMinutes} min</dd>
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-0.5">Tolerância de Atraso</p>
+                <p className="font-medium text-[#3D3D2E]">{data.lateArrivalToleranceMinutes} min</p>
               </div>
-            </dl>
+            </div>
           </CardContent>
         </Card>
 
-        {/* Subscription */}
+        {/* ── Assinatura ── */}
         {data.subscription && (
           <Card className="border border-[#D8D0C8]">
             <CardHeader className="pb-2">
               <CardTitle className="text-base" style={{ color: FOREST }}>Assinatura</CardTitle>
             </CardHeader>
             <CardContent>
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
                 {[
                   ["Status", data.subscription.status],
                   ["Stripe Customer", data.subscription.stripeCustomerId ?? "—"],
                   ["Stripe Sub ID", data.subscription.stripeSubscriptionId ?? "—"],
-                  ["Início do Período", data.subscription.currentPeriodStart ? new Date(data.subscription.currentPeriodStart).toLocaleDateString("pt-BR") : "—"],
-                  ["Fim do Período", data.subscription.currentPeriodEnd ? new Date(data.subscription.currentPeriodEnd).toLocaleDateString("pt-BR") : "—"],
+                  ["Início do Período", data.subscription.currentPeriodStart
+                    ? new Date(data.subscription.currentPeriodStart).toLocaleDateString("pt-BR") : "—"],
+                  ["Fim do Período", data.subscription.currentPeriodEnd
+                    ? new Date(data.subscription.currentPeriodEnd).toLocaleDateString("pt-BR") : "—"],
                 ].map(([k, v]) => (
                   <div key={String(k)}>
-                    <dt className="text-xs text-muted-foreground">{k}</dt>
-                    <dd className="font-medium text-[#3D3D2E]">{String(v)}</dd>
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-0.5">{k}</p>
+                    <p className="font-medium text-[#3D3D2E]">{String(v)}</p>
                   </div>
                 ))}
-              </dl>
+              </div>
             </CardContent>
           </Card>
         )}
+
       </div>
     </SuperAdminLayout>
   );
