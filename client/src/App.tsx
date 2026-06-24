@@ -15,7 +15,8 @@ import CancellationRules from "./pages/admin/CancellationRules";
 import Professionals from "./pages/admin/Professionals";
 import EditRoom from "./pages/admin/EditRoom";
 import Reports from "./pages/admin/Reports";
-import AdminCalendar from "./pages/admin/AdminCalendar";
+import AdminBookings from "./pages/admin/AdminBookings";
+import BookingPolicy from "./pages/admin/BookingPolicy";
 import BookRoom from "./pages/professional/BookRoom";
 import Bookings from "./pages/professional/Bookings";
 import PatientPortal from "./pages/PatientPortal";
@@ -43,7 +44,8 @@ function Router() {
       <Route path="/admin/professionals" component={Professionals} />
       <Route path="/admin/rooms/:id/edit" component={EditRoom} />
       <Route path="/admin/reports" component={Reports} />
-      <Route path="/admin/calendar" component={AdminCalendar} />
+      <Route path="/admin/bookings" component={AdminBookings} />
+      <Route path="/admin/booking-policy" component={BookingPolicy} />
       
       {/* Booking Routes */}
       <Route path="/rooms/:id/book" component={BookRoom} />

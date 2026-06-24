@@ -35,9 +35,10 @@ const getMenuItems = (role: string) => {
     return [
       { icon: LayoutDashboard, label: "Dashboard", path: "/admin" },
       { icon: Building2, label: "Gerenciar Salas", path: "/admin/rooms" },
-      { icon: CalendarDays, label: "Calendário de Reservas", path: "/admin/calendar" },
+      { icon: CalendarDays, label: "Gerenciar Reservas", path: "/admin/bookings" },
       { icon: Lock, label: "Bloqueios de Sala", path: "/admin/room-blocks" },
       { icon: Settings, label: "Regras de Cancelamento", path: "/admin/cancellation-rules" },
+      { icon: Shield, label: "Políticas de Reserva", path: "/admin/booking-policy" },
       { icon: Users, label: "Profissionais", path: "/admin/professionals" },
       { icon: FileBarChart2, label: "Relatórios", path: "/admin/reports" },
       { icon: Shield, label: "Trilha de Auditoria", path: "/admin/audit" },

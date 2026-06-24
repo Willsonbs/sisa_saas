@@ -910,3 +910,108 @@ export async function hasNotificationBeenSent(bookingId: number, type: string): 
   
   return result.length > 0;
 }
+
+// ============= APPOINTMENTS =============
+
+export async function createAppointment(appt: {
+  bookingId: number;
+  tenantId: number;
+  professionalId: number;
+  startTime: Date;
+  endTime: Date;
+  patientName?: string | null;
+  patientPhone?: string | null;
+  notes?: string | null;
+  status?: 'scheduled' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const { appointments } = await import('../drizzle/schema');
+  const result = await db.insert(appointments).values({
+    ...appt,
+    status: appt.status ?? 'scheduled',
+  });
+  return result;
+}
+
+export async function getAppointmentsByBooking(bookingId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const { appointments } = await import('../drizzle/schema');
+  return db.select().from(appointments)
+    .where(eq(appointments.bookingId, bookingId))
+    .orderBy(appointments.startTime);
+}
+
+export async function getAppointmentsByProfessional(professionalId: number, tenantId: number, from?: Date, to?: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  const { appointments } = await import('../drizzle/schema');
+  const conditions: any[] = [
+    eq(appointments.professionalId, professionalId),
+    eq(appointments.tenantId, tenantId),
+  ];
+  if (from) conditions.push(sql`${appointments.startTime} >= ${from}`);
+  if (to) conditions.push(sql`${appointments.startTime} <= ${to}`);
+  return db.select().from(appointments).where(and(...conditions)).orderBy(appointments.startTime);
+}
+
+export async function updateAppointment(id: number, data: {
+  status?: 'scheduled' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
+  patientName?: string | null;
+  patientPhone?: string | null;
+  notes?: string | null;
+  startTime?: Date;
+  endTime?: Date;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const { appointments } = await import('../drizzle/schema');
+  await db.update(appointments).set(data as any).where(eq(appointments.id, id));
+}
+
+export async function deleteAppointment(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const { appointments } = await import('../drizzle/schema');
+  await db.delete(appointments).where(eq(appointments.id, id));
+}
+
+export async function deleteAppointmentsByBooking(bookingId: number) {
+  const db = await getDb();
+  if (!db) return;
+  const { appointments } = await import('../drizzle/schema');
+  await db.delete(appointments).where(eq(appointments.bookingId, bookingId));
+}
+
+// ============= POLICY RESOLVER =============
+
+/**
+ * Resolve the cancellation window (in minutes) for a given tenant.
+ * Uses cancellationWindowMinutes if present, otherwise falls back to cancellationWindowHours * 60.
+ */
+export async function getTenantCancellationWindowMinutes(tenantId: number): Promise<number> {
+  const tenant = await getTenantById(tenantId);
+  if (!tenant) return 720; // default 12h
+  // cancellationWindowMinutes takes precedence
+  if ((tenant as any).cancellationWindowMinutes != null) {
+    return (tenant as any).cancellationWindowMinutes as number;
+  }
+  return tenant.cancellationWindowHours * 60;
+}
+
+/**
+ * Get the default appointment duration for a professional (minutes).
+ */
+export async function getProfessionalAppointmentDuration(professionalId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 60;
+  const result = await db.select({ appointmentDurationMinutes: users.appointmentDurationMinutes })
+    .from(users)
+    .where(eq(users.id, professionalId))
+    .limit(1);
+  if (result.length > 0 && (result[0] as any).appointmentDurationMinutes) {
+    return (result[0] as any).appointmentDurationMinutes as number;
+  }
+  return 60;
+}

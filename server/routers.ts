@@ -1449,6 +1449,168 @@ export const appRouter = router({
       }),
   }),
 
+  // ============= APPOINTMENTS =============
+  appointments: router({
+    // Listar atendimentos de uma reserva
+    listByBooking: professionalProcedure
+      .input(z.object({ bookingId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        // Verifica que a reserva pertence ao profissional (ou admin)
+        const booking = await db.getBookingById(input.bookingId, ctx.auth.tenantId);
+        if (!booking) throw new TRPCError({ code: 'NOT_FOUND', message: 'Reserva não encontrada' });
+        if (ctx.auth.role !== 'admin' && booking.professionalId !== ctx.auth.id) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Acesso negado' });
+        }
+        const appts = await db.getAppointmentsByBooking(input.bookingId);
+        return appts.map(a => ({
+          ...a,
+          patientName: decrypt(a.patientName) ?? a.patientName,
+          patientPhone: decrypt(a.patientPhone),
+        }));
+      }),
+
+    // Criar atendimento dentro de uma reserva
+    create: professionalProcedure
+      .input(z.object({
+        bookingId: z.number(),
+        startTime: z.date(),
+        endTime: z.date(),
+        patientName: z.string().optional(),
+        patientPhone: z.string().optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const booking = await db.getBookingById(input.bookingId, ctx.auth.tenantId);
+        if (!booking) throw new TRPCError({ code: 'NOT_FOUND', message: 'Reserva não encontrada' });
+        if (ctx.auth.role !== 'admin' && booking.professionalId !== ctx.auth.id) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Acesso negado' });
+        }
+        // Validate times are within booking window
+        if (input.startTime < booking.startTime || input.endTime > booking.endTime) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Atendimento fora do horário da reserva' });
+        }
+        await db.createAppointment({
+          bookingId: input.bookingId,
+          tenantId: ctx.auth.tenantId,
+          professionalId: ctx.auth.id,
+          startTime: input.startTime,
+          endTime: input.endTime,
+          patientName: input.patientName ? encrypt(input.patientName) : null,
+          patientPhone: input.patientPhone ? encrypt(input.patientPhone) : null,
+          notes: input.notes || null,
+        });
+        return { success: true };
+      }),
+
+    // Atualizar status/dados de um atendimento
+    update: professionalProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(['scheduled', 'confirmed', 'completed', 'cancelled', 'no_show']).optional(),
+        patientName: z.string().optional(),
+        patientPhone: z.string().optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { id, patientName, patientPhone, ...rest } = input;
+        await db.updateAppointment(id, {
+          ...rest,
+          patientName: patientName ? encrypt(patientName) : undefined,
+          patientPhone: patientPhone ? encrypt(patientPhone) : undefined,
+        });
+        return { success: true };
+      }),
+
+    // Deletar atendimento
+    delete: professionalProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.deleteAppointment(input.id);
+        return { success: true };
+      }),
+
+    // Gerar atendimentos automaticamente a partir da duração padrão do profissional
+    generateFromBooking: professionalProcedure
+      .input(z.object({ bookingId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const booking = await db.getBookingById(input.bookingId, ctx.auth.tenantId);
+        if (!booking) throw new TRPCError({ code: 'NOT_FOUND', message: 'Reserva não encontrada' });
+        if (ctx.auth.role !== 'admin' && booking.professionalId !== ctx.auth.id) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Acesso negado' });
+        }
+        const durationMinutes = await db.getProfessionalAppointmentDuration(ctx.auth.id);
+        const totalMinutes = (booking.endTime.getTime() - booking.startTime.getTime()) / 60000;
+        const slots = Math.floor(totalMinutes / durationMinutes);
+        // Remove existing appointments first
+        await db.deleteAppointmentsByBooking(input.bookingId);
+        for (let i = 0; i < slots; i++) {
+          const start = new Date(booking.startTime.getTime() + i * durationMinutes * 60000);
+          const end = new Date(start.getTime() + durationMinutes * 60000);
+          await db.createAppointment({
+            bookingId: input.bookingId,
+            tenantId: ctx.auth.tenantId,
+            professionalId: ctx.auth.id,
+            startTime: start,
+            endTime: end,
+          });
+        }
+        return { success: true, slots };
+      }),
+  }),
+
+  // ============= BOOKING POLICY =============
+  bookingPolicy: router({
+    // Retorna a política atual do tenant
+    get: protectedProcedure.query(async ({ ctx }) => {
+      const tenant = await db.getTenantById(ctx.auth.tenantId);
+      if (!tenant) throw new TRPCError({ code: 'NOT_FOUND', message: 'Tenant não encontrado' });
+      return {
+        cancellationWindowMinutes: (tenant as any).cancellationWindowMinutes ?? tenant.cancellationWindowHours * 60,
+        cancellationWindowHours: tenant.cancellationWindowHours,
+        lateArrivalToleranceMinutes: tenant.lateArrivalToleranceMinutes,
+      };
+    }),
+
+    // Atualiza a política do tenant (admin only)
+    update: adminProcedure
+      .input(z.object({
+        cancellationWindowMinutes: z.number().min(0).max(10080).optional(), // max 7 days
+        lateArrivalToleranceMinutes: z.number().min(0).max(120).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const tenantId = ctx.auth.tenantId;
+        await db.updateTenant(tenantId, input as any);
+        await db.createAuditLog({
+          tenantId,
+          userId: ctx.auth.id,
+          userEmail: ctx.auth.email,
+          action: 'tenant.policy_update',
+          entityType: 'tenant',
+          entityId: tenantId,
+          after: JSON.stringify(input),
+        });
+        return { success: true };
+      }),
+
+    // Retorna a duração padrão de atendimento do profissional logado
+    getMyAppointmentDuration: professionalProcedure.query(async ({ ctx }) => {
+      const duration = await db.getProfessionalAppointmentDuration(ctx.auth.id);
+      return { appointmentDurationMinutes: duration };
+    }),
+
+    // Atualiza a duração padrão de atendimento do profissional
+    updateMyAppointmentDuration: professionalProcedure
+      .input(z.object({ appointmentDurationMinutes: z.number().min(15).max(480) }))
+      .mutation(async ({ ctx, input }) => {
+        const dbConn = await db.getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB unavailable' });
+        const { users: usersTable } = await import('../drizzle/schema');
+        const { eq } = await import('drizzle-orm');
+        await dbConn.update(usersTable).set({ appointmentDurationMinutes: input.appointmentDurationMinutes } as any).where(eq(usersTable.id, ctx.auth.id));
+        return { success: true };
+      }),
+  }),
+
   apiKeys: router({
     list: professionalProcedure.query(async ({ ctx }) => {
       return db.getUserApiKeys(ctx.auth.id);

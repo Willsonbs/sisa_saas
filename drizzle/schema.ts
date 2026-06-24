@@ -21,6 +21,10 @@ export const tenants = mysqlTable("tenants", {
   
   // Cancellation policy (hours before booking)
   cancellationWindowHours: int("cancellationWindowHours").default(12).notNull(),
+
+  // Cancellation policy for professionals (minutes before booking start)
+  // Overrides cancellationWindowHours when set (more granular)
+  cancellationWindowMinutes: int("cancellationWindowMinutes").default(720).notNull(), // default 12h = 720min
   
   // Late arrival policy (minutes)
   lateArrivalToleranceMinutes: int("lateArrivalToleranceMinutes").default(15).notNull(),
@@ -57,6 +61,9 @@ export const users = mysqlTable("users", {
   // Public profile
   publicProfileSlug: varchar("publicProfileSlug", { length: 100 }).unique(), // URL pública: /p/:slug
   bio: text("bio"),
+
+  // Default appointment duration for this professional (minutes)
+  appointmentDurationMinutes: int("appointmentDurationMinutes").default(60).notNull(),
   
   // Billing information
   cpf: varchar("cpf", { length: 14 }),
@@ -542,3 +549,34 @@ export const patientAccessLogs = mysqlTable("patientAccessLogs", {
 
 export type PatientAccessLog = typeof patientAccessLogs.$inferSelect;
 export type InsertPatientAccessLog = typeof patientAccessLogs.$inferInsert;
+
+/**
+ * Appointments — atendimentos individuais dentro de uma reserva
+ * Uma reserva pode conter múltiplos atendimentos (ex: reserva 14h-16h com pacientes a cada 30min)
+ */
+export const appointments = mysqlTable("appointments", {
+  id: int("id").autoincrement().primaryKey(),
+  bookingId: int("bookingId").notNull(),
+  tenantId: int("tenantId").notNull(),
+  professionalId: int("professionalId").notNull(),
+
+  // Horário individual do atendimento
+  startTime: timestamp("startTime").notNull(),
+  endTime: timestamp("endTime").notNull(),
+
+  // Dados do paciente (criptografados — LGPD)
+  patientName: varchar("patientName", { length: 200 }),
+  patientPhone: varchar("patientPhone", { length: 20 }),
+
+  // Status do atendimento
+  status: mysqlEnum("status", ["scheduled", "confirmed", "completed", "cancelled", "no_show"]).default("scheduled").notNull(),
+
+  // Observações
+  notes: text("notes"),
+
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Appointment = typeof appointments.$inferSelect;
+export type InsertAppointment = typeof appointments.$inferInsert;
