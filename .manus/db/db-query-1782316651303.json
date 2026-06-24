@@ -1,0 +1,16 @@
+{
+  "query": "SELECT id, email, name, role FROM users WHERE email = 'willsonbs@gmail.com';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2K2nZhchkWvioe9.44e5ea8f5c60 --database BKg3JWXSVAysuyURANpvoX --execute SELECT id, email, name, role FROM users WHERE email = 'willsonbs@gmail.com';",
+  "rows": [
+    {
+      "id": "180003",
+      "email": "willsonbs@gmail.com",
+      "name": "Dra. Erika Gonçalves Leitão",
+      "role": "super_admin"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\temail\tname\trole\n180003\twillsonbs@gmail.com\tDra. Erika Gonçalves Leitão\tsuper_admin\n",
+  "stderr": "",
+  "execution_time_ms": 564
+}

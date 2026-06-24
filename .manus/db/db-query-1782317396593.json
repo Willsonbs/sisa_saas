@@ -1,0 +1,25 @@
+{
+  "query": "SELECT id, email, name, role FROM users WHERE email IN ('admin@sisa.com', 'empresa@example.com', 'profissional@example.com', 'willsonbs@gmail.com');\nSELECT id, name, slug FROM tenants LIMIT 3;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2K2nZhchkWvioe9.44e5ea8f5c60 --database BKg3JWXSVAysuyURANpvoX --execute SELECT id, email, name, role FROM users WHERE email IN ('admin@sisa.com', 'empresa@example.com', 'profissional@example.com', 'willsonbs@gmail.com');\nSELECT id, name, slug FROM tenants LIMIT 3;",
+  "rows": [
+    {
+      "id": "480005",
+      "email": "admin@sisa.com",
+      "name": "Admin SISA",
+      "role": "admin"
+    },
+    {
+      "id": "180003",
+      "email": "willsonbs@gmail.com",
+      "name": "Dra. Erika Gonçalves Leitão",
+      "role": "super_admin"
+    }
+  ],
+  "messages": [
+    "id\tname\tslug",
+    "1\tOn Life Clínica - Saúde Mental\tonlife"
+  ],
+  "stdout": "id\temail\tname\trole\n480005\tadmin@sisa.com\tAdmin SISA\tadmin\n180003\twillsonbs@gmail.com\tDra. Erika Gonçalves Leitão\tsuper_admin\nid\tname\tslug\n1\tOn Life Clínica - Saúde Mental\tonlife\n",
+  "stderr": "",
+  "execution_time_ms": 645
+}

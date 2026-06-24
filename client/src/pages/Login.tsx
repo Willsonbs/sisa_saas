@@ -178,26 +178,26 @@ export default function Login() {
             <div className="space-y-2">
               <button
                 type="button"
-                onClick={() => fillDemo('admin@sisa.com', 'admin123')}
+                onClick={() => fillDemo('empresa@example.com', 'admin@123')}
                 className="w-full text-left rounded-md bg-white border border-[#E8E4DF] px-3 py-2 hover:border-[#7C5C4A] transition-colors group"
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-medium text-[#3D3D2E]">Administrador</p>
-                    <p className="text-xs text-[#6B6560]">admin@sisa.com · admin123</p>
+                    <p className="text-xs font-medium text-[#3D3D2E]">Empresa</p>
+                    <p className="text-xs text-[#6B6560]">empresa@example.com · admin@123</p>
                   </div>
                   <span className="text-xs text-[#7C5C4A] opacity-0 group-hover:opacity-100 transition-opacity">Usar →</span>
                 </div>
               </button>
               <button
                 type="button"
-                onClick={() => fillDemo('willsonbs@gmail.com', 'admin123')}
+                onClick={() => fillDemo('profissional@example.com', 'Mudar@123')}
                 className="w-full text-left rounded-md bg-white border border-[#E8E4DF] px-3 py-2 hover:border-[#7C5C4A] transition-colors group"
               >
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs font-medium text-[#3D3D2E]">Profissional</p>
-                    <p className="text-xs text-[#6B6560]">willsonbs@gmail.com · admin123</p>
+                    <p className="text-xs text-[#6B6560]">profissional@example.com · Mudar@123</p>
                   </div>
                   <span className="text-xs text-[#7C5C4A] opacity-0 group-hover:opacity-100 transition-opacity">Usar →</span>
                 </div>
