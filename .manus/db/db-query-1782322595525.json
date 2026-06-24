@@ -1,0 +1,14 @@
+{
+  "query": "\nSELECT tenantId, COUNT(*) as total\nFROM users\nWHERE role = 'professional'\nGROUP BY tenantId;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2K2nZhchkWvioe9.44e5ea8f5c60 --database BKg3JWXSVAysuyURANpvoX --execute \nSELECT tenantId, COUNT(*) as total\nFROM users\nWHERE role = 'professional'\nGROUP BY tenantId;\n",
+  "rows": [
+    {
+      "tenantId": "1",
+      "total": "12"
+    }
+  ],
+  "messages": [],
+  "stdout": "tenantId\ttotal\n1\t12\n",
+  "stderr": "",
+  "execution_time_ms": 569
+}

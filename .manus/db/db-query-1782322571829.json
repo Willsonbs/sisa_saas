@@ -1,0 +1,16 @@
+{
+  "query": "\n-- Quantos tenants existem?\nSELECT id, name, slug, isActive FROM tenants ORDER BY id;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2K2nZhchkWvioe9.44e5ea8f5c60 --database BKg3JWXSVAysuyURANpvoX --execute \n-- Quantos tenants existem?\nSELECT id, name, slug, isActive FROM tenants ORDER BY id;\n",
+  "rows": [
+    {
+      "id": "1",
+      "name": "On Life Clínica - Saúde Mental",
+      "slug": "onlife",
+      "isActive": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tslug\tisActive\n1\tOn Life Clínica - Saúde Mental\tonlife\t1\n",
+  "stderr": "",
+  "execution_time_ms": 579
+}

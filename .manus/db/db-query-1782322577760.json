@@ -1,0 +1,20 @@
+{
+  "query": "\n-- Distribuição de profissionais por tenantId\nSELECT tenantId, COUNT(*) as total, GROUP_CONCAT(name ORDER BY name SEPARATOR ', ') as nomes\nFROM users\nWHERE role = 'professional'\nGROUP BY tenantId\nORDER BY tenantId;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2K2nZhchkWvioe9.44e5ea8f5c60 --database BKg3JWXSVAysuyURANpvoX --execute \n-- Distribuição de profissionais por tenantId\nSELECT tenantId, COUNT(*) as total, GROUP_CONCAT(name ORDER BY name SEPARATOR ', ') as nomes\nFROM users\nWHERE role = 'professional'\nGROUP BY tenantId\nORDER BY tenantId;\n",
+  "rows": [
+    {
+      "tenantId": "NULL",
+      "total": "11",
+      "nomes": "Dr. Emílio Costa, Dr. Frederico Montenegro, Dra. Anna Clara, Dra. Camila Mantega, Dra. Carolina Palácios, Dra. Eduarda Palácios, Dra. Heloisa Maria Vargas, Dra. Julia Ernestino, Dra. Juliana Bernardes, Dra. Lívia Gonçalves, Dra. Marília Verner"
+    },
+    {
+      "tenantId": "1",
+      "total": "1",
+      "nomes": "Profissional Demo"
+    }
+  ],
+  "messages": [],
+  "stdout": "tenantId\ttotal\tnomes\nNULL\t11\tDr. Emílio Costa, Dr. Frederico Montenegro, Dra. Anna Clara, Dra. Camila Mantega, Dra. Carolina Palácios, Dra. Eduarda Palácios, Dra. Heloisa Maria Vargas, Dra. Julia Ernestino, Dra. Juliana Bernardes, Dra. Lívia Gonçalves, Dra. Marília Verner\n1\t1\tProfissional Demo\n",
+  "stderr": "",
+  "execution_time_ms": 550
+}
