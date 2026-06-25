@@ -994,7 +994,7 @@ export const appRouter = router({
             roomName: room?.name ?? '—',
             professionalName: prof?.name ?? '—',
             professionalSpecialty: prof?.specialty ?? null,
-            patientName: b.patientName as string | null,
+            patientName: decrypt(b.patientName) ?? b.patientName as string | null,
           };
         }));
         if (input.search) {
