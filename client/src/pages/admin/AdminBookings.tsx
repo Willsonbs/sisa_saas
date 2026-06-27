@@ -73,10 +73,13 @@ function BookingChip({ booking, onClick }: { booking: any; onClick: () => void }
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left rounded px-1.5 py-1 text-[10px] leading-tight truncate ${colorClass} hover:opacity-80 transition-opacity`}
+      className={`w-full text-left rounded px-1.5 py-1 text-[10px] leading-tight ${colorClass} hover:opacity-80 transition-opacity`}
     >
       <div className="font-semibold truncate">{booking.professionalName}</div>
-      <div className="opacity-80 truncate">{fmt(booking.startTime)}–{fmt(booking.endTime)}</div>
+      {booking.patientName && (
+        <div className="opacity-90 truncate text-[9px]">Pac: {booking.patientName}</div>
+      )}
+      <div className="opacity-70 truncate">{fmt(booking.startTime)}-{fmt(booking.endTime)}</div>
     </button>
   );
 }

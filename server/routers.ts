@@ -35,6 +35,15 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   return next({ ctx });
 });
 
+// Staff procedure (admin, receptionist, financial, super_admin)
+const staffProcedure = protectedProcedure.use(({ ctx, next }) => {
+  const allowed = ['admin', 'super_admin', 'receptionist', 'financial'];
+  if (!allowed.includes(ctx.auth.role)) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'Acesso restrito a staff interno.' });
+  }
+  return next({ ctx });
+});
+
 // Professional or admin procedure
 const professionalProcedure = protectedProcedure.use(({ ctx, next }) => {
   if (ctx.auth.role !== 'admin' && ctx.auth.role !== 'professional') {
@@ -1023,23 +1032,52 @@ export const appRouter = router({
       };
     }),
 
-    listAllBookings: adminProcedure
+    listAllBookings: staffProcedure
       .input(z.object({ startDate: z.date().optional(), endDate: z.date().optional(), roomId: z.number().optional() }).optional())
       .query(async ({ ctx, input }) => {
         const tenantId = ctx.auth.tenantId;
-        const list = await db.getBookingsByTenant(tenantId, input?.startDate, input?.endDate);
-        const filtered = input?.roomId ? list.filter((b: any) => b.roomId === input.roomId) : list;
-        return Promise.all(filtered.map(async (b: any) => {
-          const [prof, room] = await Promise.all([db.getUserById(b.professionalId), db.getRoomById(b.roomId, ctx.auth.tenantId)]);
-          return {
-            ...b,
-            // Descriptografa dados sensíveis para o admin (LGPD)
-            patientName: decrypt(b.patientName) ?? b.patientName,
-            patientPhone: decrypt(b.patientPhone),
-            privateNotes: decrypt(b.privateNotes),
-            professionalName: (prof as any)?.name || `Profissional #${b.professionalId}`,
-            roomName: (room as any)?.name || `Sala #${b.roomId}`,
-          };
+        const dbConn = await db.getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB unavailable' });
+
+        const { bookings: bookingsTable, users, rooms: roomsTable } = await import('../drizzle/schema');
+        const { eq, and, gte, lte, sql } = await import('drizzle-orm');
+
+        // Construir condições de filtro
+        const conditions: any[] = [eq(bookingsTable.tenantId, tenantId)];
+        if (input?.startDate) conditions.push(sql`${bookingsTable.startTime} >= ${input.startDate}`);
+        if (input?.endDate) conditions.push(sql`${bookingsTable.startTime} <= ${input.endDate}`);
+        if (input?.roomId) conditions.push(eq(bookingsTable.roomId, input.roomId));
+
+        // JOIN único — sem N+1
+        const rows = await dbConn
+          .select({
+            id: bookingsTable.id,
+            tenantId: bookingsTable.tenantId,
+            professionalId: bookingsTable.professionalId,
+            roomId: bookingsTable.roomId,
+            startTime: bookingsTable.startTime,
+            endTime: bookingsTable.endTime,
+            status: bookingsTable.status,
+            patientName: bookingsTable.patientName,
+            patientPhone: bookingsTable.patientPhone,
+            privateNotes: bookingsTable.privateNotes,
+            totalPrice: bookingsTable.totalPrice,
+            createdAt: bookingsTable.createdAt,
+            professionalName: users.name,
+            roomName: roomsTable.name,
+          })
+          .from(bookingsTable)
+          .leftJoin(users, eq(bookingsTable.professionalId, users.id))
+          .leftJoin(roomsTable, eq(bookingsTable.roomId, roomsTable.id))
+          .where(and(...conditions));
+
+        return rows.map((b: any) => ({
+          ...b,
+          patientName: decrypt(b.patientName) ?? b.patientName,
+          patientPhone: decrypt(b.patientPhone),
+          privateNotes: decrypt(b.privateNotes),
+          professionalName: b.professionalName || `Profissional #${b.professionalId}`,
+          roomName: b.roomName || `Sala #${b.roomId}`,
         }));
       }),
 

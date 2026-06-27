@@ -68,6 +68,38 @@ export const adminProcedure = t.procedure.use(
 );
 
 /**
+ * Procedure para staff interno (admin, receptionist, financial).
+ * Permite acesso a dados do tenant sem permissões de admin completo.
+ * Recepcionistas e financeiro têm acesso de leitura ao tenant deles.
+ */
+export const staffProcedure = t.procedure.use(
+  t.middleware(async opts => {
+    const { ctx, next } = opts;
+    const staffRoles = ['admin', 'super_admin', 'receptionist', 'financial'];
+
+    if (!ctx.user || !staffRoles.includes(ctx.user.role)) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Acesso restrito a staff interno." });
+    }
+
+    const auth: AuthenticatedUser = {
+      id: ctx.user.id,
+      email: ctx.user.email,
+      role: ctx.user.role as AuthenticatedUser["role"],
+      tenantId: resolveTenantId(ctx.user),
+      name: ctx.user.name ?? null,
+    };
+
+    return next({
+      ctx: {
+        ...ctx,
+        user: ctx.user,
+        auth,
+      },
+    });
+  }),
+);
+
+/**
  * Procedure exclusiva para SUPER_ADMIN (proprietário da plataforma SISA).
  * Não exige tenantId — opera em escopo global.
  */
