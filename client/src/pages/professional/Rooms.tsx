@@ -52,7 +52,7 @@ function dateLabel(d: Date) {
   return `${DIAS_PT[d.getDay()]}, ${d.getDate()} de ${MESES_PT[d.getMonth()]} de ${d.getFullYear()}`;
 }
 
-// ─── Tipos ───────────────────────────────────────────────────────────────────
+// ─// ─── Tipos ───────────────────────────────────────────────────────────────
 
 type SlotType = "free" | "booking" | "maintenance" | "admin_block" | "my_booking" | "past";
 
@@ -61,6 +61,8 @@ interface OccupiedBlock {
   startMins: number;
   endMins: number;
   type: SlotType;
+  /** Horário formatado, ex: "20:00–21:00" — preenchido para booking e my_booking */
+  timeRange?: string;
 }
 
 function slotBg(type: SlotType): string {
@@ -221,31 +223,44 @@ export default function Rooms() {
       const e = new Date(bk.endTime);
       if (!isSameDay(s, day) && !isSameDay(e, day) && !(s < day && e > dayStart)) continue;
       const isMyBooking = bk.professionalId === myUserId;
+      const startMins = s.getHours() * 60 + s.getMinutes();
+      const endMins   = e.getHours() * 60 + e.getMinutes();
+      // Formata horário para exibir na célula: "20:00–21:00"
+      const timeRange = `${fmtTime(s.getHours(), s.getMinutes())}–${fmtTime(e.getHours(), e.getMinutes())}`;
       blocks.push({
         roomId,
-        startMins: s.getHours() * 60 + s.getMinutes(),
-        endMins:   e.getHours() * 60 + e.getMinutes(),
+        startMins,
+        endMins,
         type: isMyBooking ? "my_booking" : "booking",
+        timeRange,
       });
     }
 
     return blocks;
   }
 
-  function getHourSlotType(roomId: number, hour: number): SlotType {
+  /** Retorna tipo + horário formatado do bloco que ocupa este slot (se houver). */
+  function getHourSlotInfo(roomId: number, hour: number): { type: SlotType; timeRange?: string } {
     // Bloqueia horários no passado (data anterior ou mesma data mas hora já passou)
     const now = new Date();
     const slotDate = new Date(currentDate);
     slotDate.setHours(hour + 1, 0, 0, 0); // fim do slot
-    if (slotDate <= now) return "past";
+    if (slotDate <= now) return { type: "past" };
 
     const slotStartMins = hour * 60;
     const slotEndMins   = (hour + 1) * 60;
     const blocks = getOccupiedBlocks(roomId);
     for (const b of blocks) {
-      if (b.startMins < slotEndMins && b.endMins > slotStartMins) return b.type;
+      if (b.startMins < slotEndMins && b.endMins > slotStartMins) {
+        return { type: b.type, timeRange: b.timeRange };
+      }
     }
-    return "free";
+    return { type: "free" };
+  }
+
+  /** Compatível com o código existente que só precisa do tipo. */
+  function getHourSlotType(roomId: number, hour: number): SlotType {
+    return getHourSlotInfo(roomId, hour).type;
   }
 
   function handleSlotClick(roomId: number, hour: number) {
@@ -383,13 +398,14 @@ export default function Rooms() {
 
                     {/* Células das salas */}
                     {pagedRooms.map((room) => {
-                      const type = getHourSlotType(room.id, hour);
+                      const { type, timeRange } = getHourSlotInfo(room.id, hour);
                       const isFree = type === "free";
                       return (
                         <HourCell
                           key={room.id}
                           type={type}
                           isFree={isFree}
+                          timeRange={timeRange}
                           onClick={() => handleSlotClick(room.id, hour)}
                         />
                       );
@@ -438,15 +454,17 @@ export default function Rooms() {
   );
 }
 
-// ─── Célula de hora com hover ─────────────────────────────────────────────────
+// ─── Célula de hora com hover ───────────────────────────────────────────────────────────────
 
 function HourCell({
   type,
   isFree,
+  timeRange,
   onClick,
 }: {
   type: SlotType;
   isFree: boolean;
+  timeRange?: string;
   onClick: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
@@ -467,13 +485,21 @@ function HourCell({
       onMouseLeave={() => setHovered(false)}
       title={isPast ? "Horário no passado" : isFree ? "Clique para reservar" : slotLabel(type)}
     >
-      <div className="flex items-center justify-center h-full">
+      <div className="flex flex-col items-center justify-center h-full gap-0.5">
         <span
           className="text-[10px] font-medium leading-tight text-center"
           style={{ color: slotTextColor(type) }}
         >
           {!isPast && isFree && hovered ? "Reservar" : slotLabel(type)}
         </span>
+        {!isPast && !isFree && timeRange && (
+          <span
+            className="text-[9px] leading-tight text-center font-mono"
+            style={{ color: slotTextColor(type), opacity: 0.85 }}
+          >
+            {timeRange}
+          </span>
+        )}
       </div>
     </td>
   );
