@@ -24,17 +24,20 @@ let _db: ReturnType<typeof drizzle<typeof import('../drizzle/schema')>> | null =
 let _pool: Pool | null = null;
 
 // Lazily create the drizzle instance so local tooling can run without a DB.
+// SUPABASE_URL takes priority over DATABASE_URL to allow migration without touching reserved env vars.
 export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
+  if (!_db) {
+    const connStr = process.env.SUPABASE_URL || process.env.DATABASE_URL || '';
+    if (!connStr) return null;
     try {
-      const connStr = process.env.DATABASE_URL || '';
-      // Supabase pooler (port 6543) requires SSL; direct connection (port 5432) also works with SSL
+      // Supabase pooler (port 6543) and direct connections require SSL
       const needsSsl = connStr.includes('supabase.com') || connStr.includes('supabase.co');
       _pool = new Pool({
         connectionString: connStr,
         ssl: needsSsl ? { rejectUnauthorized: false } : false,
       });
       _db = drizzle(_pool);
+      console.log(`[Database] Connected via ${process.env.SUPABASE_URL ? 'SUPABASE_URL' : 'DATABASE_URL'}`);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;

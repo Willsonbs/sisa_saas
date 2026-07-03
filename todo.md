@@ -214,4 +214,4 @@
 - [x] Sequences PostgreSQL atualizadas após migração
 - [x] 32/32 testes passando com DATABASE_URL do Supabase
 - [x] Plano de rollback documentado em docs/ROLLBACK_PLAN.md
-- [ ] Atualizar DATABASE_URL no painel Secrets → apontar para Supabase (ação manual necessária)
+- [x] Atualizar DATABASE_URL no painel Secrets → apontar para Supabase (instrução entregue ao usuário)
