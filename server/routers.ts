@@ -1019,9 +1019,53 @@ export const appRouter = router({
   }),
 
   admin: router({
-    listUsers: adminProcedure.query(async () => {
-      return await db.getAllProfessionals();
+    listUsers: adminProcedure.query(async ({ ctx }) => {
+      return await db.getAllProfessionals(ctx.auth.tenantId);
     }),
+
+    createProfessional: adminProcedure
+      .input(z.object({
+        name: z.string().min(2, 'Nome obrigatório'),
+        email: z.string().email('E-mail inválido'),
+        password: z.string().min(6, 'Senha mínima: 6 caracteres'),
+        phone: z.string().optional(),
+        specialty: z.string().optional(),
+        registryType: z.string().optional(),
+        professionalRegistry: z.string().optional(),
+        bio: z.string().optional(),
+        cpf: z.string().optional(),
+        cnpj: z.string().optional(),
+        dateOfBirth: z.string().optional(),
+        gender: z.string().optional(),
+        address: z.string().optional(),
+        appointmentDurationMinutes: z.number().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { hashPassword } = await import('./auth');
+        const existing = await db.getUserByEmail(input.email);
+        if (existing) throw new TRPCError({ code: 'CONFLICT', message: 'Este e-mail já está cadastrado.' });
+        const hashedPassword = await hashPassword(input.password);
+        const { password, ...rest } = input;
+        const newUser = await db.createProfessional({
+          ...rest,
+          password: hashedPassword,
+          role: 'professional',
+          loginMethod: 'password',
+        });
+        // Link professional to this tenant
+        const dbConn = await db.getDb();
+        if (dbConn && newUser?.id) {
+          const { professionalTenants } = await import('../drizzle/schema');
+          await dbConn.insert(professionalTenants).values({
+            professionalId: newUser.id,
+            tenantId: ctx.auth.tenantId,
+            status: 'approved',
+            approvedBy: ctx.auth.id,
+            approvedAt: new Date(),
+          });
+        }
+        return { success: true };
+      }),
     stats: adminProcedure.query(async () => {
       const rooms = await db.getAllRooms();
       const professionals = await db.getAllProfessionals();
@@ -1082,13 +1126,35 @@ export const appRouter = router({
       }),
 
     updateProfessional: adminProcedure
-      .input(z.object({ id: z.number(), name: z.string().optional(), email: z.string().email().optional(), phone: z.string().optional(), specialty: z.string().optional(), professionalRegistry: z.string().optional(), registryType: z.string().optional(), bio: z.string().optional() }))
-      .mutation(async ({ input }) => {
+      .input(z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        email: z.string().email().optional(),
+        phone: z.string().optional(),
+        specialty: z.string().optional(),
+        professionalRegistry: z.string().optional(),
+        registryType: z.string().optional(),
+        bio: z.string().optional(),
+        cpf: z.string().optional(),
+        cnpj: z.string().optional(),
+        dateOfBirth: z.string().optional(),
+        gender: z.string().optional(),
+        address: z.string().optional(),
+        publicProfileSlug: z.string().optional(),
+        appointmentDurationMinutes: z.number().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
         const { id, ...data } = input;
         const dbConn = await db.getDb();
         if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB unavailable' });
-        const { users } = await import('../drizzle/schema');
-        const { eq } = await import('drizzle-orm');
+        // Verify professional belongs to this tenant (multi-tenant isolation)
+        const { users, professionalTenants } = await import('../drizzle/schema');
+        const { eq, and } = await import('drizzle-orm');
+        const link = await dbConn.select({ id: professionalTenants.id })
+          .from(professionalTenants)
+          .where(and(eq(professionalTenants.professionalId, id), eq(professionalTenants.tenantId, ctx.auth.tenantId)))
+          .limit(1);
+        if (link.length === 0) throw new TRPCError({ code: 'FORBIDDEN', message: 'Profissional não pertence a este tenant.' });
         await dbConn.update(users).set(data as any).where(eq(users.id, id));
         return { success: true };
       }),

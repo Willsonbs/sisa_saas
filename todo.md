@@ -215,3 +215,9 @@
 - [x] 32/32 testes passando com DATABASE_URL do Supabase
 - [x] Plano de rollback documentado em docs/ROLLBACK_PLAN.md
 - [x] Atualizar DATABASE_URL no painel Secrets → apontar para Supabase (instrução entregue ao usuário)
+
+## Melhorias no Painel de Profissionais (Admin)
+- [x] Formulário de cadastro/edição com campos completos: CPF/CNPJ, telefone, endereço, especialidade, registro profissional (CRP/CRM/CRO), data de nascimento, gênero, bio
+- [x] Corrigir coluna "Créditos" na listagem de profissionais (exibir saldo real do banco)
+- [x] Backend: procedure admin.listProfessionals deve retornar saldo de créditos de cada profissional
+- [x] Backend: procedure admin.updateProfessional deve aceitar e salvar todos os campos cadastrais

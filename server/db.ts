@@ -237,7 +237,8 @@ export async function createProfessional(data: InsertUser) {
     return;
   }
 
-  await db.insert(users).values(data);
+  const result = await db.insert(users).values(data).returning({ id: users.id });
+  return result[0] ?? null;
 }
 
 export async function updateUserProfile(userId: number, data: Partial<InsertUser>) {
@@ -250,23 +251,75 @@ export async function updateUserProfile(userId: number, data: Partial<InsertUser
 export async function getAllProfessionals(tenantId?: number) {
   const db = await getDb();
   if (!db) return [];
-  
+
+  // Subquery: sum of credit balance per professional
+  const creditSumSq = db
+    .select({
+      professionalId: credits.professionalId,
+      creditBalance: sql<number>`COALESCE(SUM(${credits.amount}), 0)`.as('creditBalance'),
+    })
+    .from(credits)
+    .groupBy(credits.professionalId)
+    .as('creditSums');
+
   if (tenantId) {
-    // Get professionals linked to this tenant
     const links = await db.select().from(professionalTenants)
       .where(eq(professionalTenants.tenantId, tenantId));
-    
+
     if (links.length === 0) return [];
-    
+
     const professionalIds = links.map(l => l.professionalId);
-    return db.select().from(users)
+    return db
+      .select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        phone: users.phone,
+        specialty: users.specialty,
+        professionalRegistry: users.professionalRegistry,
+        registryType: users.registryType,
+        bio: users.bio,
+        cpf: users.cpf,
+        cnpj: users.cnpj,
+        dateOfBirth: users.dateOfBirth,
+        gender: users.gender,
+        address: users.address,
+        publicProfileSlug: users.publicProfileSlug,
+        role: users.role,
+        createdAt: users.createdAt,
+        creditBalance: sql<number>`COALESCE(${creditSumSq.creditBalance}, 0)`,
+      })
+      .from(users)
+      .leftJoin(creditSumSq, eq(users.id, creditSumSq.professionalId))
       .where(and(
         eq(users.role, 'professional'),
         sql`${users.id} IN (${professionalIds.join(',')})`
       ));
   }
-  
-  return db.select().from(users).where(eq(users.role, 'professional'));
+
+  return db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      phone: users.phone,
+      specialty: users.specialty,
+      professionalRegistry: users.professionalRegistry,
+      registryType: users.registryType,
+      bio: users.bio,
+      cpf: users.cpf,
+      cnpj: users.cnpj,
+      dateOfBirth: users.dateOfBirth,
+      gender: users.gender,
+      address: users.address,
+      publicProfileSlug: users.publicProfileSlug,
+      role: users.role,
+      createdAt: users.createdAt,
+      creditBalance: sql<number>`COALESCE(${creditSumSq.creditBalance}, 0)`,
+    })
+    .from(users)
+    .leftJoin(creditSumSq, eq(users.id, creditSumSq.professionalId))
+    .where(eq(users.role, 'professional'));
 }
 
 // ============= ROOMS =============
