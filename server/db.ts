@@ -263,12 +263,7 @@ export async function getAllProfessionals(tenantId?: number) {
     .as('creditSums');
 
   if (tenantId) {
-    const links = await db.select().from(professionalTenants)
-      .where(eq(professionalTenants.tenantId, tenantId));
-
-    if (links.length === 0) return [];
-
-    const professionalIds = links.map(l => l.professionalId);
+    // Single JOIN query — avoids two-step fetch and IN() with stale IDs
     return db
       .select({
         id: users.id,
@@ -290,11 +285,15 @@ export async function getAllProfessionals(tenantId?: number) {
         creditBalance: sql<number>`COALESCE(${creditSumSq.creditBalance}, 0)`,
       })
       .from(users)
+      .innerJoin(
+        professionalTenants,
+        and(
+          eq(professionalTenants.professionalId, users.id),
+          eq(professionalTenants.tenantId, tenantId)
+        )
+      )
       .leftJoin(creditSumSq, eq(users.id, creditSumSq.professionalId))
-      .where(and(
-        eq(users.role, 'professional'),
-        sql`${users.id} IN (${professionalIds.join(',')})`
-      ));
+      .where(eq(users.role, 'professional'));
   }
 
   return db
