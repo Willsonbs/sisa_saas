@@ -57,7 +57,13 @@ export const appRouter = router({
   superAdmin: superAdminRouter,
   
   auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
+    me: publicProcedure.query(opts => {
+      const user = opts.ctx.user;
+      if (!user) return null;
+      // SECURITY: nunca expor hash de senha ao frontend
+      const { password, passwordHash, cpf, cnpj, ...safeUser } = user as any;
+      return safeUser;
+    }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie('auth_token', { ...cookieOptions, maxAge: -1 });
@@ -196,10 +202,11 @@ export const appRouter = router({
   }),
 
   rooms: router({
-    list: publicProcedure
+    list: protectedProcedure
       .input(z.object({ includeInactive: z.boolean().optional() }).optional())
-      .query(async ({ input }) => {
-        const rooms = await db.getAllRooms(input?.includeInactive);
+      .query(async ({ ctx, input }) => {
+        // SECURITY: filtrar salas pelo tenant do usuário logado
+        const rooms = await db.getAllRooms(input?.includeInactive, ctx.auth.tenantId);
         return rooms.map(room => ({
           ...room,
           equipment: room.equipment ? JSON.parse(room.equipment) : [],
@@ -442,13 +449,16 @@ export const appRouter = router({
         };
       }),
     
-    getByRoom: publicProcedure
+    getByRoom: protectedProcedure
       .input(z.object({
         roomId: z.number(),
         startDate: z.date(),
         endDate: z.date(),
       }))
-      .query(async ({ input }) => {
+      .query(async ({ ctx, input }) => {
+        // SECURITY: verifica que a sala pertence ao tenant do usuário antes de retornar reservas
+        const room = await db.getRoomById(input.roomId, ctx.auth.tenantId);
+        if (!room) throw new TRPCError({ code: 'NOT_FOUND', message: 'Sala não encontrada' });
         return db.getBookingsByRoom(input.roomId, input.startDate, input.endDate);
       }),
     
@@ -938,8 +948,9 @@ export const appRouter = router({
     
     markAsRead: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
-        await db.markNotificationAsRead(input.id);
+      .mutation(async ({ ctx, input }) => {
+        // SECURITY: só marca como lida se a notificação pertencer ao usuário logado
+        await db.markNotificationAsRead(input.id, ctx.auth.id);
         return { success: true };
       }),
     
@@ -1066,9 +1077,11 @@ export const appRouter = router({
         }
         return { success: true };
       }),
-    stats: adminProcedure.query(async () => {
-      const rooms = await db.getAllRooms();
-      const professionals = await db.getAllProfessionals();
+    stats: adminProcedure.query(async ({ ctx }) => {
+      // SECURITY: escopar estatísticas ao tenant do admin logado
+      const tenantId = ctx.auth.tenantId;
+      const rooms = await db.getAllRooms(true, tenantId);
+      const professionals = await db.getAllProfessionals(tenantId);
       return {
         totalRooms: rooms.length,
         activeRooms: rooms.filter(r => r.isActive).length,
@@ -1177,7 +1190,8 @@ export const appRouter = router({
       .input(z.object({ roomId: z.number().optional(), startDate: z.date().optional(), endDate: z.date().optional() }).optional())
       .query(async ({ ctx, input }) => {
         const tenantId = ctx.auth.tenantId;
-        const allRooms = await db.getAllRooms(false);
+        // SECURITY: filtrar salas pelo tenant do admin
+        const allRooms = await db.getAllRooms(false, tenantId);
         const allBookings = await db.getBookingsByTenant(tenantId, input?.startDate, input?.endDate);
         const rooms = input?.roomId ? allRooms.filter((r: any) => r.id === input.roomId) : allRooms;
         return Promise.all(rooms.map(async (room: any) => {
@@ -1192,8 +1206,9 @@ export const appRouter = router({
   }),
 
   cancellationRules: router({
-    list: publicProcedure.query(async () => {
-      return await getCancellationRules();
+    // SECURITY: list filtrado pelo tenant do usuário logado (protectedProcedure)
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return await getCancellationRules(ctx.auth.tenantId);
     }),
     create: adminProcedure
       .input(
@@ -1204,8 +1219,9 @@ export const appRouter = router({
           isActive: z.boolean().optional(),
         })
       )
-      .mutation(async ({ input }) => {
-        await createCancellationRule(input);
+      .mutation(async ({ ctx, input }) => {
+        // SECURITY: vincular regra ao tenant do admin
+        await createCancellationRule({ ...input, tenantId: ctx.auth.tenantId });
         return { success: true };
       }),
     update: adminProcedure
@@ -1218,14 +1234,16 @@ export const appRouter = router({
           isActive: z.boolean().optional(),
         })
       )
-      .mutation(async ({ input }) => {
-        await updateCancellationRule(input.id, input);
+      .mutation(async ({ ctx, input }) => {
+        // SECURITY: só atualiza regras do próprio tenant
+        await updateCancellationRule(input.id, input, ctx.auth.tenantId);
         return { success: true };
       }),
     delete: adminProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
-        await deleteCancellationRule(input.id);
+      .mutation(async ({ ctx, input }) => {
+        // SECURITY: só deleta regras do próprio tenant
+        await deleteCancellationRule(input.id, ctx.auth.tenantId);
         return { success: true };
       }),
   }),
@@ -1507,15 +1525,17 @@ export const appRouter = router({
     
     notify: professionalProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
-        await db.updateWaitlistEntry(input.id, { status: 'notified' });
+      .mutation(async ({ ctx, input }) => {
+        // SECURITY: só atualiza entradas da lista de espera do próprio profissional
+        await db.updateWaitlistEntry(input.id, { status: 'notified' }, ctx.auth.id);
         return { success: true };
       }),
     
     convert: professionalProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
-        await db.updateWaitlistEntry(input.id, { status: 'converted' });
+      .mutation(async ({ ctx, input }) => {
+        // SECURITY: só converte entradas da lista de espera do próprio profissional
+        await db.updateWaitlistEntry(input.id, { status: 'converted' }, ctx.auth.id);
         return { success: true };
       }),
   }),

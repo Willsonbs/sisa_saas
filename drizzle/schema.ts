@@ -7,6 +7,7 @@ import {
   timestamp,
   varchar,
   boolean,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 // ─── ENUMS ────────────────────────────────────────────────────────────────────
@@ -144,7 +145,10 @@ export const professionalTenants = pgTable("professionalTenants", {
   rejectionReason: text("rejectionReason"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
-});
+}, (table) => ({
+  // SECURITY: garante que um profissional só pode ter um vínculo por tenant
+  uqProfessionalTenant: uniqueIndex("uq_professional_tenant").on(table.professionalId, table.tenantId),
+}));
 export type ProfessionalTenant = typeof professionalTenants.$inferSelect;
 export type InsertProfessionalTenant = typeof professionalTenants.$inferInsert;
 

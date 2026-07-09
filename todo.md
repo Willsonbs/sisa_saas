@@ -221,3 +221,13 @@
 - [x] Corrigir coluna "Créditos" na listagem de profissionais (exibir saldo real do banco)
 - [x] Backend: procedure admin.listProfessionals deve retornar saldo de créditos de cada profissional
 - [x] Backend: procedure admin.updateProfessional deve aceitar e salvar todos os campos cadastrais
+
+## Varredura de Segurança Multi-Tenant
+
+- [ ] Mapear todas as procedures sem filtro de tenantId
+- [ ] Corrigir isolamento: salas, reservas, bloqueios, regras, políticas
+- [ ] Corrigir isolamento: relatórios, financeiro, auditoria, configurações
+- [ ] Corrigir isolamento: recepção, profissionais, usuários internos
+- [ ] Constraint UNIQUE em professionalTenants (professionalId, tenantId)
+- [ ] Verificar exposição de dados sensíveis (CPF, CNPJ, pacientes)
+- [ ] Gerar relatório de segurança

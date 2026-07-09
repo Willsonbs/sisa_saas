@@ -716,18 +716,24 @@ export async function getCancellationRules(tenantId?: number) {
   return db.select().from(cancellationRules).orderBy(desc(cancellationRules.hoursBeforeBooking));
 }
 
-export async function updateCancellationRule(id: number, data: Partial<InsertCancellationRule>) {
+export async function updateCancellationRule(id: number, data: Partial<InsertCancellationRule>, tenantId?: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  await db.update(cancellationRules).set(data).where(eq(cancellationRules.id, id));
+  // SECURITY: se tenantId fornecido, garante que a regra pertence ao tenant
+  const condition = tenantId
+    ? and(eq(cancellationRules.id, id), eq(cancellationRules.tenantId, tenantId))
+    : eq(cancellationRules.id, id);
+  await db.update(cancellationRules).set(data).where(condition);
 }
 
-export async function deleteCancellationRule(id: number) {
+export async function deleteCancellationRule(id: number, tenantId?: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  await db.delete(cancellationRules).where(eq(cancellationRules.id, id));
+  // SECURITY: se tenantId fornecido, garante que a regra pertence ao tenant
+  const condition = tenantId
+    ? and(eq(cancellationRules.id, id), eq(cancellationRules.tenantId, tenantId))
+    : eq(cancellationRules.id, id);
+  await db.delete(cancellationRules).where(condition);
 }
 
 // ============= AUDIT LOGS =============
@@ -786,10 +792,14 @@ export async function getWaitlistByProfessional(professionalId: number, tenantId
     .orderBy(desc(waitlistEntries.createdAt));
 }
 
-export async function updateWaitlistEntry(id: number, data: Partial<InsertWaitlistEntry>) {
+export async function updateWaitlistEntry(id: number, data: Partial<InsertWaitlistEntry>, professionalId?: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(waitlistEntries).set(data).where(eq(waitlistEntries.id, id));
+  // SECURITY: se professionalId fornecido, garante que a entrada pertence ao profissional
+  const condition = professionalId
+    ? and(eq(waitlistEntries.id, id), eq(waitlistEntries.professionalId, professionalId))
+    : eq(waitlistEntries.id, id);
+  await db.update(waitlistEntries).set(data).where(condition);
 }
 
 // ============= CONSENT RECORDS =============
@@ -840,14 +850,17 @@ export async function getUnreadNotifications(userId: number) {
     .orderBy(desc(notifications.createdAt));
 }
 
-export async function markNotificationAsRead(id: number) {
+export async function markNotificationAsRead(id: number, userId?: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
+  // SECURITY: se userId fornecido, garante que a notificação pertence ao usuário
+  const condition = userId
+    ? and(eq(notifications.id, id), eq(notifications.userId, userId))
+    : eq(notifications.id, id);
   await db.update(notifications).set({ 
     isRead: true, 
     readAt: new Date() 
-  }).where(eq(notifications.id, id));
+  }).where(condition);
 }
 
 export async function markAllNotificationsAsRead(userId: number) {
