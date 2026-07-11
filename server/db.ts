@@ -1,4 +1,4 @@
-import { eq, and, gte, lte, desc, sql, or } from "drizzle-orm";
+import { eq, and, gte, lte, lt, gt, desc, sql, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { 
   InsertUser, users, 
@@ -433,10 +433,11 @@ export async function checkBookingConflict(roomId: number, startTime: Date, endT
       eq(bookings.status, 'confirmed'),
       eq(bookings.status, 'pending_payment')
     ),
-    or(
-      and(gte(bookings.startTime, startTime), lte(bookings.startTime, endTime)),
-      and(gte(bookings.endTime, startTime), lte(bookings.endTime, endTime)),
-      and(lte(bookings.startTime, startTime), gte(bookings.endTime, endTime))
+    // Overlap em intervalo semiaberto [startTime, endTime): dois agendamentos que
+    // apenas se tocam (fim de um = inicio do outro) NAO sao conflito.
+    and(
+      lt(bookings.startTime, endTime),
+      gt(bookings.endTime, startTime)
     )
   ];
   
@@ -455,10 +456,10 @@ export async function checkRoomBlockConflict(roomId: number, startTime: Date, en
   const conflicts = await db.select().from(roomBlocks)
     .where(and(
       eq(roomBlocks.roomId, roomId),
-      or(
-        and(gte(roomBlocks.startTime, startTime), lte(roomBlocks.startTime, endTime)),
-        and(gte(roomBlocks.endTime, startTime), lte(roomBlocks.endTime, endTime)),
-        and(lte(roomBlocks.startTime, startTime), gte(roomBlocks.endTime, endTime))
+      // Mesma regra de overlap semiaberto usada em checkBookingConflict.
+      and(
+        lt(roomBlocks.startTime, endTime),
+        gt(roomBlocks.endTime, startTime)
       )
     ))
     .limit(1);
