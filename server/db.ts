@@ -492,17 +492,15 @@ export async function checkBookingConflict(roomId: number, startTime: Date, endT
   const db = await getDb();
   if (!db) return false;
   
+  // Overlap estrito: exclui horários adjacentes (ex: 08:00-09:00 e 09:00-10:00 NÃO conflitam).
+  // Dois intervalos [A,B] e [C,D] se sobrepõem se e somente se A < D && C < B.
   const conditions: any[] = [
     eq(bookings.roomId, roomId),
     or(
       eq(bookings.status, 'confirmed'),
       eq(bookings.status, 'pending_payment')
     ),
-    or(
-      and(gte(bookings.startTime, startTime), lte(bookings.startTime, endTime)),
-      and(gte(bookings.endTime, startTime), lte(bookings.endTime, endTime)),
-      and(lte(bookings.startTime, startTime), gte(bookings.endTime, endTime))
-    )
+    sql`${bookings.startTime} < ${endTime} AND ${bookings.endTime} > ${startTime}`
   ];
   
   if (excludeBookingId) {
@@ -517,14 +515,11 @@ export async function checkRoomBlockConflict(roomId: number, startTime: Date, en
   const db = await getDb();
   if (!db) return false;
   
+  // Overlap estrito: horários adjacentes não conflitam (A < D && C < B)
   const conflicts = await db.select().from(roomBlocks)
     .where(and(
       eq(roomBlocks.roomId, roomId),
-      or(
-        and(gte(roomBlocks.startTime, startTime), lte(roomBlocks.startTime, endTime)),
-        and(gte(roomBlocks.endTime, startTime), lte(roomBlocks.endTime, endTime)),
-        and(lte(roomBlocks.startTime, startTime), gte(roomBlocks.endTime, endTime))
-      )
+      sql`${roomBlocks.startTime} < ${endTime} AND ${roomBlocks.endTime} > ${startTime}`
     ))
     .limit(1);
   
