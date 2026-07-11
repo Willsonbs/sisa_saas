@@ -30,7 +30,7 @@ import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 
-const getMenuItems = (role: string) => {
+const getMenuItems = (role: string, user?: any) => {
   if (role === 'admin') {
     return [
       { icon: LayoutDashboard, label: "Dashboard", path: "/admin" },
@@ -44,6 +44,24 @@ const getMenuItems = (role: string) => {
       { icon: Shield, label: "Trilha de Auditoria", path: "/admin/audit" },
       { icon: Settings, label: "Configurações", path: "/admin/settings" },
     ];
+  }
+  if (role === 'receptionist' || role === 'financial') {
+    // Menu base sempre disponível
+    const items: any[] = [
+      { icon: CalendarDays, label: "Painel de Recepção", path: "/reception" },
+    ];
+    // Itens condicionais baseados nas permissões do usuário
+    if (user?.permCanViewBookings) {
+      items.push({ icon: CalendarDays, label: "Gerenciar Reservas", path: "/admin/bookings" });
+    }
+    if (user?.permCanViewRooms) {
+      items.push({ icon: Building2, label: "Salas", path: "/admin/rooms" });
+      items.push({ icon: Lock, label: "Bloqueios de Sala", path: "/admin/room-blocks" });
+    }
+    if (user?.permCanViewProfessionals) {
+      items.push({ icon: Users, label: "Profissionais", path: "/admin/professionals" });
+    }
+    return items;
   }
   return [
     { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
@@ -119,7 +137,7 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const menuItems = getMenuItems(user?.role || 'user');
+  const menuItems = getMenuItems(user?.role || 'user', user);
   const activeMenuItem = menuItems.find((item: any) => item.path === location);
   const isMobile = useIsMobile();
 
@@ -171,7 +189,7 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
                     SISA
                   </div>
                   <span className="text-xs text-[#A8A49E] truncate font-light">
-                    {user?.role === 'admin' ? 'Administrador' : 'Profissional'}
+                    {user?.role === 'admin' ? 'Administrador' : user?.role === 'receptionist' ? 'Recepção' : user?.role === 'financial' ? 'Financeiro' : 'Profissional'}
                   </span>
                 </div>
               )}

@@ -1,0 +1,94 @@
+{
+  "query": "SELECT id, name, email, role FROM users WHERE tenantId = 1 AND role = 'professional';\nSHOW COLUMNS FROM credits;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2K2nZhchkWvioe9.44e5ea8f5c60 --database BKg3JWXSVAysuyURANpvoX --execute SELECT id, name, email, role FROM users WHERE tenantId = 1 AND role = 'professional';\nSHOW COLUMNS FROM credits;",
+  "rows": [
+    {
+      "id": "150001",
+      "name": "Dr. Emílio Costa",
+      "email": "emiliocosta@example.com",
+      "role": "professional"
+    },
+    {
+      "id": "150006",
+      "name": "Dra. Marília Verner",
+      "email": "marilia@example.com",
+      "role": "professional"
+    },
+    {
+      "id": "270001",
+      "name": "Dra. Camila Mantega",
+      "email": "camila@example.com",
+      "role": "professional"
+    },
+    {
+      "id": "270002",
+      "name": "Dra. Juliana Bernardes",
+      "email": "juliana@example.com",
+      "role": "professional"
+    },
+    {
+      "id": "270003",
+      "name": "Dr. Frederico Montenegro",
+      "email": "frederico@example.com",
+      "role": "professional"
+    },
+    {
+      "id": "300001",
+      "name": "Dra. Eduarda Palácios",
+      "email": "eduarda@example.com",
+      "role": "professional"
+    },
+    {
+      "id": "300002",
+      "name": "Dra. Carolina Palácios",
+      "email": "carolina@example.com",
+      "role": "professional"
+    },
+    {
+      "id": "300003",
+      "name": "Dra. Julia Ernestino",
+      "email": "julia@example.com",
+      "role": "professional"
+    },
+    {
+      "id": "300006",
+      "name": "Dra. Anna Clara",
+      "email": "annaclara@example.com",
+      "role": "professional"
+    },
+    {
+      "id": "510004",
+      "name": "Dra. Lívia Gonçalves",
+      "email": "livia@example.com",
+      "role": "professional"
+    },
+    {
+      "id": "570001",
+      "name": "Dra. Heloisa Maria Vargas",
+      "email": "heloisa@example.com",
+      "role": "professional"
+    },
+    {
+      "id": "690001",
+      "name": "Profissional Demo",
+      "email": "profissional@example.com",
+      "role": "professional"
+    }
+  ],
+  "messages": [
+    "Field\tType\tNull\tKey\tDefault\tExtra",
+    "id\tint\tNO\tPRI\tNULL\tauto_increment",
+    "professionalId\tint\tNO\t\tNULL\t",
+    "amount\tint\tNO\t\tNULL\t",
+    "type\tenum('purchase','refund','debit','bonus')\tNO\t\tNULL\t",
+    "bookingId\tint\tYES\t\tNULL\t",
+    "paymentId\tint\tYES\t\tNULL\t",
+    "description\ttext\tYES\t\tNULL\t",
+    "balanceAfter\tint\tNO\t\tNULL\t",
+    "createdAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\t",
+    "tenantId\tint\tNO\t\t1\t"
+  ],
+  "stdout": "id\tname\temail\trole\n150001\tDr. Emílio Costa\temiliocosta@example.com\tprofessional\n150006\tDra. Marília Verner\tmarilia@example.com\tprofessional\n270001\tDra. Camila Mantega\tcamila@example.com\tprofessional\n270002\tDra. Juliana Bernardes\tjuliana@example.com\tprofessional\n270003\tDr. Frederico Montenegro\tfrederico@example.com\tprofessional\n300001\tDra. Eduarda Palácios\teduarda@example.com\tprofessional\n300002\tDra. Carolina Palácios\tcarolina@example.com\tprofessional\n300003\tDra. Julia Ernestino\tjulia@example.com\tprofessional\n300006\tDra. Anna Clara\tannaclara@example.com\tprofessional\n510004\tDra. Lívia Gonçalves\tlivia@example.com\tprofessional\n570001\tDra. Heloisa Maria Vargas\theloisa@example.com\tprofessional\n690001\tProfissional Demo\tprofissional@example.com\tprofessional\nField\tType\tNull\tKey\tDefault\tExtra\nid\tint\tNO\tPRI\tNULL\tauto_increment\nprofessionalId\tint\tNO\t\tNULL\t\namount\tint\tNO\t\tNULL\t\ntype\tenum('purchase','refund','debit','bonus')\tNO\t\tNULL\t\nbookingId\tint\tYES\t\tNULL\t\npaymentId\tint\tYES\t\tNULL\t\ndescription\ttext\tYES\t\tNULL\t\nbalanceAfter\tint\tNO\t\tNULL\t\ncreatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\t\ntenantId\tint\tNO\t\t1\t\n",
+  "stderr": "",
+  "execution_time_ms": 778
+}

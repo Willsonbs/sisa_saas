@@ -199,3 +199,35 @@
 - [x] SisaAudit.tsx com log de auditoria expandível
 - [x] App.tsx: rotas /sisa/* registradas
 - [x] Testes Vitest: 11 testes de controle de acesso passando (32 total)
+
+## Migração MySQL → PostgreSQL/Supabase
+- [x] Checkpoint de rollback salvo (8bbf957e) antes da migração
+- [x] drizzle/schema.ts reescrito: mysqlTable→pgTable, enums globais, serial(), integer()
+- [x] drizzle.config.ts: dialect mysql→postgresql
+- [x] server/db.ts: driver mysql2→pg (Pool), onDuplicateKeyUpdate→onConflictDoUpdate, SSL automático para Supabase
+- [x] Removido mysql2 das dependências de produção
+- [x] Adicionado pg + @types/pg + postgres
+- [x] Migrations MySQL antigas movidas para drizzle/mysql_backup/
+- [x] Nova migration PostgreSQL gerada: drizzle/0000_lovely_echo.sql
+- [x] 19 tabelas criadas no Supabase via drizzle-kit migrate
+- [x] 181 registros migrados do MySQL para o Supabase (script scripts/migrate_data.mjs)
+- [x] Sequences PostgreSQL atualizadas após migração
+- [x] 32/32 testes passando com DATABASE_URL do Supabase
+- [x] Plano de rollback documentado em docs/ROLLBACK_PLAN.md
+- [x] Atualizar DATABASE_URL no painel Secrets → apontar para Supabase (instrução entregue ao usuário)
+
+## Melhorias no Painel de Profissionais (Admin)
+- [x] Formulário de cadastro/edição com campos completos: CPF/CNPJ, telefone, endereço, especialidade, registro profissional (CRP/CRM/CRO), data de nascimento, gênero, bio
+- [x] Corrigir coluna "Créditos" na listagem de profissionais (exibir saldo real do banco)
+- [x] Backend: procedure admin.listProfessionals deve retornar saldo de créditos de cada profissional
+- [x] Backend: procedure admin.updateProfessional deve aceitar e salvar todos os campos cadastrais
+
+## Varredura de Segurança Multi-Tenant
+
+- [ ] Mapear todas as procedures sem filtro de tenantId
+- [ ] Corrigir isolamento: salas, reservas, bloqueios, regras, políticas
+- [ ] Corrigir isolamento: relatórios, financeiro, auditoria, configurações
+- [ ] Corrigir isolamento: recepção, profissionais, usuários internos
+- [ ] Constraint UNIQUE em professionalTenants (professionalId, tenantId)
+- [ ] Verificar exposição de dados sensíveis (CPF, CNPJ, pacientes)
+- [ ] Gerar relatório de segurança

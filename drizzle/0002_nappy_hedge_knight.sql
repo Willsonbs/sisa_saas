@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "uq_professional_tenant" ON "professionalTenants" USING btree ("professionalId","tenantId");
