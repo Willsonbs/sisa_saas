@@ -37,8 +37,11 @@ export type AuthenticatedContext = {
 };
 
 /**
- * Resolve o tenantId do usuário com fallback seguro.
- * Lança erro se o usuário não tiver tenantId (configuração inválida).
+ * Resolve o tenantId do usuário.
+ * Lança erro se o usuário não tiver tenantId (configuração inválida) — NÃO faz
+ * fallback silencioso para um tenant "padrão", pois isso poderia fazer um
+ * usuário mal configurado (bug de cadastro, etc.) ser tratado como pertencente
+ * ao tenant 1 e ganhar acesso não intencional aos dados dele.
  * Super admins não têm tenantId — retorna 0 como sentinela.
  */
 export function resolveTenantId(user: { tenantId: number | null; id: number; role?: string }): number {
@@ -46,6 +49,7 @@ export function resolveTenantId(user: { tenantId: number | null; id: number; rol
   if (user.tenantId !== null && user.tenantId !== undefined) {
     return user.tenantId;
   }
-  // Fallback para tenant 1 (tenant padrão) — apenas para compatibilidade
-  return 1;
+  throw new Error(
+    `Usuário id=${user.id} não possui tenantId configurado. Configuração de conta inválida — contate o suporte.`
+  );
 }

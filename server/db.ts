@@ -331,11 +331,15 @@ export async function createRoom(room: InsertRoom) {
   return result;
 }
 
-export async function updateRoom(id: number, data: Partial<InsertRoom>) {
+export async function updateRoom(id: number, data: Partial<InsertRoom>, tenantId?: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  await db.update(rooms).set(data).where(eq(rooms.id, id));
+
+  // Isolamento de tenant: se tenantId for informado, so atualiza salas daquele tenant.
+  const conditions = tenantId !== undefined
+    ? and(eq(rooms.id, id), eq(rooms.tenantId, tenantId))
+    : eq(rooms.id, id);
+  await db.update(rooms).set(data).where(conditions);
 }
 
 export async function getRoomById(id: number, tenantId?: number) {
@@ -362,11 +366,15 @@ export async function getAllRooms(includeInactive = false, tenantId?: number) {
   return db.select().from(rooms).where(and(...conditions));
 }
 
-export async function deleteRoom(id: number) {
+export async function deleteRoom(id: number, tenantId?: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  await db.update(rooms).set({ isActive: false }).where(eq(rooms.id, id));
+
+  // Isolamento de tenant: se tenantId for informado, so desativa salas daquele tenant.
+  const conditions = tenantId !== undefined
+    ? and(eq(rooms.id, id), eq(rooms.tenantId, tenantId))
+    : eq(rooms.id, id);
+  await db.update(rooms).set({ isActive: false }).where(conditions);
 }
 
 // ============= ROOM BLOCKS =============
@@ -658,12 +666,18 @@ export async function getPaymentByStripeId(stripePaymentIntentId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-export async function getPaymentHistory(professionalId: number, limit = 50) {
+export async function getPaymentHistory(professionalId: number, limit = 50, tenantId?: number) {
   const db = await getDb();
   if (!db) return [];
-  
+
+  // Isolamento de tenant: profissionais podem estar vinculados a mais de um
+  // tenant (professionalTenants). Sem esse filtro, o histórico de pagamentos
+  // de quem atua em mais de uma clínica mistura registros de todas elas.
+  const conditions: any[] = [eq(payments.professionalId, professionalId)];
+  if (tenantId) conditions.push(eq(payments.tenantId, tenantId));
+
   return db.select().from(payments)
-    .where(eq(payments.professionalId, professionalId))
+    .where(and(...conditions))
     .orderBy(desc(payments.createdAt))
     .limit(limit);
 }
