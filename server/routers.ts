@@ -121,10 +121,23 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         const { verifyPassword, generateToken } = await import('./auth');
         const { getSessionCookieOptions } = await import('./_core/cookies');
-        
-        // Busc        // Buscar usuário
+        const { checkLoginRateLimit, registerFailedLogin, clearLoginRateLimit } = await import('./_core/loginRateLimit');
+
+        const clientIp = getClientIp(ctx.req);
+
+        // SECURITY: bloqueia força bruta de senha por email+IP
+        const blockedForSeconds = checkLoginRateLimit(input.email, clientIp);
+        if (blockedForSeconds !== null) {
+          throw new TRPCError({
+            code: 'TOO_MANY_REQUESTS',
+            message: `Muitas tentativas de login. Tente novamente em ${Math.ceil(blockedForSeconds / 60)} minuto(s).`,
+          });
+        }
+
+        // Buscar usuário
         const user = await db.getUserByEmail(input.email);
         if (!user) {
+          registerFailedLogin(input.email, clientIp);
           throw new TRPCError({ 
             code: 'UNAUTHORIZED', 
             message: 'Email ou senha inválidos' 
@@ -135,6 +148,7 @@ export const appRouter = router({
         // Profissionais/admins criados via cadastro usam password
         const hashToVerify = user.passwordHash ?? user.password;
         if (!hashToVerify) {
+          registerFailedLogin(input.email, clientIp);
           throw new TRPCError({ 
             code: 'UNAUTHORIZED', 
             message: 'Email ou senha inválidos' 
@@ -144,11 +158,14 @@ export const appRouter = router({
         // Verificar senha (bcrypt funciona para ambos os campos)
         const isValid = await verifyPassword(input.password, hashToVerify);
         if (!isValid) {
+          registerFailedLogin(input.email, clientIp);
           throw new TRPCError({ 
             code: 'UNAUTHORIZED', 
             message: 'Email ou senha inválidos' 
           });
         }
+
+        clearLoginRateLimit(input.email, clientIp);
         
         // Gerar token JWT
         const token = await generateToken(user.id, user.email, user.role);
@@ -283,14 +300,17 @@ export const appRouter = router({
         closeTime: z.string().optional(),
         isActive: z.boolean().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const { id, equipment, features, ...rest } = input;
         const updateData = {
           ...rest,
           ...(equipment && { equipment: JSON.stringify(equipment) }),
           ...(features && { features: JSON.stringify(features) }),
         };
-        await db.updateRoom(id, updateData);
+        // SECURITY: garante que a sala pertence ao tenant do admin antes de alterar
+        const existingRoom = await db.getRoomById(id, ctx.auth.tenantId);
+        if (!existingRoom) throw new TRPCError({ code: 'NOT_FOUND', message: 'Room not found' });
+        await db.updateRoom(id, updateData, ctx.auth.tenantId);
         return { success: true };
       }),
     
@@ -311,22 +331,28 @@ export const appRouter = router({
         const currentPhotos = room.photos ? JSON.parse(room.photos) : [];
         currentPhotos.push(url);
         
-        await db.updateRoom(input.roomId, { photos: JSON.stringify(currentPhotos) });
+        await db.updateRoom(input.roomId, { photos: JSON.stringify(currentPhotos) }, ctx.auth.tenantId);
         return { url };
       }),
     
     delete: adminProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
-        await db.deleteRoom(input.id);
+      .mutation(async ({ input, ctx }) => {
+        // SECURITY: garante que a sala pertence ao tenant do admin antes de desativar
+        const existingRoom = await db.getRoomById(input.id, ctx.auth.tenantId);
+        if (!existingRoom) throw new TRPCError({ code: 'NOT_FOUND', message: 'Room not found' });
+        await db.deleteRoom(input.id, ctx.auth.tenantId);
         return { success: true };
       }),
 
     deleteHard: adminProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const dbConn = await db.getDb();
         if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB unavailable' });
+        // SECURITY: garante que a sala pertence ao tenant do admin antes de excluir definitivamente
+        const existingRoom = await db.getRoomById(input.id, ctx.auth.tenantId);
+        if (!existingRoom) throw new TRPCError({ code: 'NOT_FOUND', message: 'Room not found' });
         const { rooms: roomsTable, bookings: bookingsTable } = await import('../drizzle/schema');
         const { eq } = await import('drizzle-orm');
         const existing = await dbConn.select({ id: bookingsTable.id }).from(bookingsTable).where(eq(bookingsTable.roomId, input.id)).limit(1);
@@ -615,12 +641,15 @@ export const appRouter = router({
         const bufferEndTime = new Date(input.endTime.getTime() + (room.bufferAfter || 0) * 60000);
 
         // Create booking with 'pending_payment' status
+        // SECURITY/LGPD: criptografa dados sensíveis do paciente, igual ao fluxo
+        // de reserva por créditos (bookings.create) — antes ficavam em texto puro
+        // apenas neste fluxo de pagamento via Stripe.
         const bookingResult = await db.createBooking({
           roomId: input.roomId,
           tenantId,
           professionalId: ctx.auth.id,
-          patientName: input.patientName,
-          patientPhone: input.patientPhone || null,
+          patientName: encrypt(input.patientName) ?? input.patientName,
+          patientPhone: encrypt(input.patientPhone || null),
           startTime: input.startTime,
           endTime: input.endTime,
           bufferStartTime,
@@ -628,7 +657,7 @@ export const appRouter = router({
           totalPrice,
           status: 'pending_payment',
           receptionNotes: input.receptionNotes || null,
-          privateNotes: input.privateNotes || null,
+          privateNotes: encrypt(input.privateNotes || null),
         });
 
         const bookingId = (bookingResult as any)?.insertId;
@@ -729,11 +758,15 @@ export const appRouter = router({
         });
         
         if (refundAmount > 0) {
-          const balance = await db.getCreditBalance(ctx.auth.id);
+          // SECURITY/FINANCEIRO: o reembolso deve ir para o dono original da reserva
+          // (booking.professionalId), não para quem executou o cancelamento
+          // (ctx.auth.id) — um admin/recepcionista pode cancelar em nome de outro
+          // profissional, e o crédito não pode parar na conta de quem cancelou.
+          const balance = await db.getCreditBalance(booking.professionalId);
           const newBalance = balance + refundAmount;
           
           await db.addCredit({
-            professionalId: ctx.auth.id,
+            professionalId: booking.professionalId,
             tenantId: booking.tenantId || 1,
             amount: refundAmount,
             type: 'refund',
@@ -790,6 +823,16 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         const tenantId = ctx.auth.tenantId;
+        // SECURITY: garante que o profissional pertence a este tenant antes de creditar
+        const dbConnCheck = await db.getDb();
+        if (!dbConnCheck) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB unavailable' });
+        const { professionalTenants } = await import('../drizzle/schema');
+        const { eq: eqOp, and: andOp } = await import('drizzle-orm');
+        const link = await dbConnCheck.select({ id: professionalTenants.id })
+          .from(professionalTenants)
+          .where(andOp(eqOp(professionalTenants.professionalId, input.professionalId), eqOp(professionalTenants.tenantId, tenantId)))
+          .limit(1);
+        if (link.length === 0) throw new TRPCError({ code: 'FORBIDDEN', message: 'Profissional não pertence a este tenant.' });
         const balance = await db.getCreditBalance(input.professionalId, tenantId);
         const newBalance = balance + input.amount;
         
@@ -829,6 +872,16 @@ export const appRouter = router({
       .input(z.object({ professionalId: z.number() }))
       .query(async ({ ctx, input }) => {
         const tenantId = ctx.auth.tenantId;
+        // SECURITY: garante que o profissional pertence a este tenant antes de expor o saldo
+        const dbConnCheck = await db.getDb();
+        if (!dbConnCheck) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB unavailable' });
+        const { professionalTenants } = await import('../drizzle/schema');
+        const { eq: eqOp, and: andOp } = await import('drizzle-orm');
+        const link = await dbConnCheck.select({ id: professionalTenants.id })
+          .from(professionalTenants)
+          .where(andOp(eqOp(professionalTenants.professionalId, input.professionalId), eqOp(professionalTenants.tenantId, tenantId)))
+          .limit(1);
+        if (link.length === 0) throw new TRPCError({ code: 'FORBIDDEN', message: 'Profissional não pertence a este tenant.' });
         return db.getCreditBalance(input.professionalId, tenantId);
       }),
   }),
@@ -837,7 +890,7 @@ export const appRouter = router({
     history: professionalProcedure
       .input(z.object({ limit: z.number().optional() }).optional())
       .query(async ({ ctx, input }) => {
-        return db.getPaymentHistory(ctx.auth.id, input?.limit);
+        return db.getPaymentHistory(ctx.auth.id, input?.limit, ctx.auth.tenantId);
       }),
     
     // Create Stripe checkout session for credit purchase
@@ -1128,11 +1181,17 @@ export const appRouter = router({
           .leftJoin(roomsTable, eq(bookingsTable.roomId, roomsTable.id))
           .where(and(...conditions));
 
+        // SECURITY/LGPD: o papel "financial" só precisa de dados de cobrança
+        // (valor, sala, profissional, status) — não de identidade do paciente
+        // nem de notas clínicas privadas. Minimiza exposição por princípio de
+        // necessidade (LGPD), sem tirar acesso de quem realmente precisa
+        // (admin, super_admin, receptionist).
+        const isFinancialOnly = ctx.auth.role === 'financial';
         return rows.map((b: any) => ({
           ...b,
-          patientName: decrypt(b.patientName) ?? b.patientName,
-          patientPhone: decrypt(b.patientPhone),
-          privateNotes: decrypt(b.privateNotes),
+          patientName: isFinancialOnly ? '(dado restrito)' : (decrypt(b.patientName) ?? b.patientName),
+          patientPhone: isFinancialOnly ? null : decrypt(b.patientPhone),
+          privateNotes: isFinancialOnly ? null : decrypt(b.privateNotes),
           professionalName: b.professionalName || `Profissional #${b.professionalId}`,
           roomName: b.roomName || `Sala #${b.roomId}`,
         }));
@@ -1174,11 +1233,17 @@ export const appRouter = router({
 
     deleteProfessional: adminProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const dbConn = await db.getDb();
         if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB unavailable' });
-        const { users, bookings: bookingsTable, credits: creditsTable } = await import('../drizzle/schema');
-        const { eq } = await import('drizzle-orm');
+        const { users, bookings: bookingsTable, credits: creditsTable, professionalTenants } = await import('../drizzle/schema');
+        const { eq, and } = await import('drizzle-orm');
+        // SECURITY: garante que o profissional pertence a este tenant (mesma checagem de updateProfessional)
+        const link = await dbConn.select({ id: professionalTenants.id })
+          .from(professionalTenants)
+          .where(and(eq(professionalTenants.professionalId, input.id), eq(professionalTenants.tenantId, ctx.auth.tenantId)))
+          .limit(1);
+        if (link.length === 0) throw new TRPCError({ code: 'FORBIDDEN', message: 'Profissional não pertence a este tenant.' });
         const existing = await dbConn.select({ id: bookingsTable.id }).from(bookingsTable).where(eq(bookingsTable.professionalId, input.id)).limit(1);
         if (existing.length > 0) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Não é possível excluir: profissional possui reservas registradas.' });
         await dbConn.delete(creditsTable).where(eq(creditsTable.professionalId, input.id));
