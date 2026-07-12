@@ -1,7 +1,16 @@
 import bcrypt from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'default-secret-key');
+// SECURITY: nunca usar um valor padrao aqui. Um fallback fixo neste repositorio
+// publico permitiria forjar tokens JWT validos (inclusive de super_admin) para
+// qualquer ambiente que suba sem configurar a variavel corretamente.
+if (!process.env.JWT_SECRET) {
+  throw new Error(
+    'JWT_SECRET nao esta configurado. Defina essa variavel de ambiente antes de iniciar o servidor - nao ha valor padrao por seguranca.'
+  );
+}
+
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
 const SALT_ROUNDS = 10;
 
 export async function hashPassword(password: string): Promise<string> {

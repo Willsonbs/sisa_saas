@@ -52,11 +52,16 @@ async function startServer() {
 
       if (event.type === 'checkout.session.completed') {
         const session = event.data.object as any;
-        const { professionalId, packageId, credits, tenantId, bookingId, type: paymentType } = session.metadata || {};
+        const { professionalId, packageId, credits, tenantId, bookingId, paymentRecordId, type: paymentType } = session.metadata || {};
 
         const db = await import('../db');
         const profId = parseInt(professionalId, 10);
         const tenId = parseInt(tenantId || '1', 10);
+        // SECURITY/FINANCEIRO: paymentRecordId identifica o registro de pagamento exato
+        // criado no momento do checkout. Sem ele, um update por "professionalId + status
+        // pending" confirmaria QUALQUER outro pagamento pendente do mesmo profissional
+        // (ex: duas compras simultâneas), mesmo que não tenha sido pago.
+        const paymentRecId = paymentRecordId ? parseInt(paymentRecordId, 10) : undefined;
         const { payments: paymentsTable, bookings: bookingsTable } = await import('../../drizzle/schema');
         const { eq, and } = await import('drizzle-orm');
         const dbConn = await db.getDb();
@@ -83,6 +88,14 @@ async function startServer() {
           return;
         }
 
+        // Condição de atualização do registro de pagamento: usa o ID exato quando
+        // disponível (fluxo atual, que sempre envia paymentRecordId); mantém o filtro
+        // por professionalId+pending como fallback só para sessões antigas sem esse
+        // metadata.
+        const paymentUpdateWhere = paymentRecId !== undefined && !Number.isNaN(paymentRecId)
+          ? and(eq(paymentsTable.id, paymentRecId), eq(paymentsTable.professionalId, profId))
+          : and(eq(paymentsTable.professionalId, profId), eq(paymentsTable.status, 'pending'));
+
         if (paymentType === 'booking_payment' && bookingId) {
           // Direct booking payment: confirm the booking
           const bookId = parseInt(bookingId, 10);
@@ -92,10 +105,7 @@ async function startServer() {
 
           await dbConn.update(paymentsTable)
             .set({ status: 'paid', stripePaymentIntentId: paymentIntentId })
-            .where(and(
-              eq(paymentsTable.professionalId, profId),
-              eq(paymentsTable.status, 'pending')
-            ));
+            .where(paymentUpdateWhere);
 
           console.log(`[Stripe] Booking ${bookId} confirmed via direct payment for professional ${profId}`);
         } else if (credits) {
@@ -114,10 +124,7 @@ async function startServer() {
 
           await dbConn.update(paymentsTable)
             .set({ status: 'paid', stripePaymentIntentId: paymentIntentId })
-            .where(and(
-              eq(paymentsTable.professionalId, profId),
-              eq(paymentsTable.status, 'pending')
-            ));
+            .where(paymentUpdateWhere);
 
           console.log(`[Stripe] Credits added: ${creditsNum} to professional ${profId}`);
         }

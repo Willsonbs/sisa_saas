@@ -13,7 +13,15 @@ const ALGORITHM = "aes-256-gcm";
  * Usa JWT_SECRET como base (já disponível no ambiente) com padding/trim para 32 bytes.
  */
 function getEncryptionKey(): Buffer {
-  const secret = process.env.JWT_SECRET || "default-insecure-key-change-in-production";
+  // SECURITY: nunca usar um valor padrao aqui. Um fallback fixo neste
+  // repositorio publico tornaria todos os dados de pacientes decifraveis por
+  // qualquer pessoa em qualquer ambiente que suba sem configurar a variavel.
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error(
+      "JWT_SECRET nao esta configurado. Necessario para derivar a chave de criptografia - nao ha valor padrao por seguranca."
+    );
+  }
   // Deriva 32 bytes a partir do secret usando SHA-256 implícito via Buffer
   const keyStr = secret.padEnd(32, "0").substring(0, 32);
   return Buffer.from(keyStr, "utf8");

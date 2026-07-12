@@ -42,7 +42,10 @@ export function getSessionCookieOptions(
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
+    // SECURITY: "lax" é suficiente e mais seguro contra CSRF, já que o
+    // frontend e a API são servidos pela mesma origem (mesmo app Express).
+    // "none" só é necessário quando front e back estão em domínios diferentes.
+    sameSite: "lax",
     secure: isSecureRequest(req),
   };
 }
