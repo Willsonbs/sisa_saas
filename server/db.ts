@@ -94,6 +94,29 @@ export async function getProfessionalTenantLink(professionalId: number, tenantId
   return result.length > 0 ? result[0] : undefined;
 }
 
+/**
+ * Lista enxuta (id + nome) dos profissionais aprovados de um tenant.
+ * Usada para autocomplete de filtro (ex: painel de recepção) — não expõe
+ * email/CPF/telefone etc, só o necessário para busca por nome (LGPD).
+ */
+export async function getProfessionalNamesByTenant(tenantId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select({
+    id: users.id,
+    name: users.name,
+  })
+    .from(users)
+    .innerJoin(professionalTenants, and(
+      eq(professionalTenants.professionalId, users.id),
+      eq(professionalTenants.tenantId, tenantId),
+      eq(professionalTenants.status, 'approved')
+    ))
+    .where(eq(users.role, 'professional'))
+    .orderBy(users.name);
+}
+
 export async function getProfessionalsByTenant(tenantId: number, status?: string) {
   const db = await getDb();
   if (!db) return [];
@@ -1187,6 +1210,15 @@ export async function deleteStaffUser(id: number, tenantId: number) {
 export async function getReceptionBookings(tenantId: number, startMs: number, endMs: number) {
   const db = await getDb();
   if (!db) return [];
+  // BUG CORRIGIDO: a condicao anterior comparava a coluna (enum booking_status)
+  // com o valor 'cancelled', que NAO existe no enum (os valores validos sao
+  // draft/pending_payment/confirmed/canceled_with_credit/no_show/completed).
+  // No Postgres isso lanca "invalid input value for enum booking_status" e
+  // derruba a query inteira - por isso o Painel de Recepcao sempre retornava
+  // vazio, mesmo com reservas existindo no dia. O frontend ja exibe o status
+  // "Cancelada" normalmente (ha badge propria para canceled_with_credit),
+  // entao aqui simplesmente listamos todas as reservas do dia, sem excluir
+  // nenhum status - igual ao padrao ja usado em admin.listAllBookings.
   return db.select({
     id: bookings.id,
     startTime: bookings.startTime,
@@ -1201,8 +1233,7 @@ export async function getReceptionBookings(tenantId: number, startMs: number, en
   .where(and(
     eq(bookings.tenantId, tenantId),
     gte(bookings.startTime, new Date(startMs)),
-    lte(bookings.startTime, new Date(endMs)),
-    sql`${bookings.status} != 'cancelled'`
+    lte(bookings.startTime, new Date(endMs))
   ))
   .orderBy(bookings.startTime);
 }
