@@ -1093,6 +1093,35 @@ export const appRouter = router({
     professionals: receptionistProcedure.query(async ({ ctx }) => {
       return db.getProfessionalNamesByTenant(ctx.auth.tenantId!);
     }),
+
+    // Tela "Profissionais" da recepção/financeiro: lista com dados de contato
+    // e permite atualizar telefone. Gated pela permissão permCanViewProfessionals
+    // (admin/super_admin sempre têm acesso, independente do toggle).
+    professionalsContacts: staffProcedure.query(async ({ ctx }) => {
+      const isAdmin = ctx.auth.role === 'admin' || ctx.auth.role === 'super_admin';
+      if (!isAdmin && !ctx.user?.permCanViewProfessionals) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Sem permissão para ver profissionais.' });
+      }
+      return db.getProfessionalContactsByTenant(ctx.auth.tenantId!);
+    }),
+
+    updateProfessionalContact: staffProcedure
+      .input(z.object({
+        professionalId: z.number(),
+        phone: z.string().min(8, 'Telefone inválido'),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const isAdmin = ctx.auth.role === 'admin' || ctx.auth.role === 'super_admin';
+        if (!isAdmin && !ctx.user?.permCanViewProfessionals) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Sem permissão para editar profissionais.' });
+        }
+        try {
+          await db.updateProfessionalPhone(input.professionalId, ctx.auth.tenantId!, input.phone);
+        } catch (err: any) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: err.message || 'Não foi possível atualizar.' });
+        }
+        return { success: true };
+      }),
   }),
 
   admin: router({
@@ -1921,7 +1950,6 @@ export const appRouter = router({
           canViewProfessionals: Boolean(r.permCanViewProfessionals),
           canViewRooms: Boolean(r.permCanViewRooms),
           canCheckIn: Boolean(r.permCanCheckIn),
-          canManagePatients: Boolean(r.permCanManagePatients),
         },
       }));
     }),
@@ -1937,7 +1965,6 @@ export const appRouter = router({
           canViewProfessionals: z.boolean().default(true),
           canViewRooms: z.boolean().default(true),
           canCheckIn: z.boolean().default(true),
-          canManagePatients: z.boolean().default(false),
         }),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -1956,7 +1983,6 @@ export const appRouter = router({
           permCanViewProfessionals: input.permissions.canViewProfessionals,
           permCanViewRooms: input.permissions.canViewRooms,
           permCanCheckIn: input.permissions.canCheckIn,
-          permCanManagePatients: input.permissions.canManagePatients,
         });
         return { success: true };
       }),
@@ -1972,7 +1998,6 @@ export const appRouter = router({
           canViewProfessionals: z.boolean(),
           canViewRooms: z.boolean(),
           canCheckIn: z.boolean(),
-          canManagePatients: z.boolean(),
         }).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -1986,7 +2011,6 @@ export const appRouter = router({
           updateData.permCanViewProfessionals = input.permissions.canViewProfessionals;
           updateData.permCanViewRooms = input.permissions.canViewRooms;
           updateData.permCanCheckIn = input.permissions.canCheckIn;
-          updateData.permCanManagePatients = input.permissions.canManagePatients;
         }
         await db.updateStaffUser(input.id, tenantId, updateData);
         return { success: true };
