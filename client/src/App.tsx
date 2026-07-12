@@ -33,6 +33,7 @@ import SisaBilling from "./pages/sisa/SisaBilling";
 import SisaUsers from "./pages/sisa/SisaUsers";
 import SisaAudit from "./pages/sisa/SisaAudit";
 import ReceptionPanel from "./pages/reception/ReceptionPanel";
+import ProfessionalsContacts from "./pages/reception/ProfessionalsContacts";
 
 function Router() {
   return (
@@ -50,6 +51,7 @@ function Router() {
       <Route path="/admin/rooms" component={RoomsManagement} />
       <Route path="/admin/cancellation-rules" component={CancellationRules} />
       <Route path="/admin/professionals" component={Professionals} />
+      <Route path="/reception/professionals" component={ProfessionalsContacts} />
       <Route path="/admin/rooms/:id/edit" component={EditRoom} />
       <Route path="/admin/reports" component={Reports} />
       <Route path="/admin/bookings" component={AdminBookings} />

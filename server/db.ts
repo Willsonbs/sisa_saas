@@ -94,6 +94,78 @@ export async function getProfessionalTenantLink(professionalId: number, tenantId
   return result.length > 0 ? result[0] : undefined;
 }
 
+/**
+ * Lista enxuta (id + nome) dos profissionais aprovados de um tenant.
+ * Usada para autocomplete de filtro (ex: painel de recepção) — não expõe
+ * email/CPF/telefone etc, só o necessário para busca por nome (LGPD).
+ */
+export async function getProfessionalNamesByTenant(tenantId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select({
+    id: users.id,
+    name: users.name,
+  })
+    .from(users)
+    .innerJoin(professionalTenants, and(
+      eq(professionalTenants.professionalId, users.id),
+      eq(professionalTenants.tenantId, tenantId),
+      eq(professionalTenants.status, 'approved')
+    ))
+    .where(eq(users.role, 'professional'))
+    .orderBy(users.name);
+}
+
+/**
+ * Lista de profissionais com dados de contato (nome, email, telefone,
+ * especialidade) para a tela "Profissionais" da recepção/financeiro. Não
+ * inclui CPF/CNPJ/endereço/registro (só o necessário para orientar pacientes
+ * e atualizar telefone de contato) — LGPD/minimização de dados.
+ */
+export async function getProfessionalContactsByTenant(tenantId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select({
+    id: users.id,
+    name: users.name,
+    email: users.email,
+    phone: users.phone,
+    specialty: users.specialty,
+  })
+    .from(users)
+    .innerJoin(professionalTenants, and(
+      eq(professionalTenants.professionalId, users.id),
+      eq(professionalTenants.tenantId, tenantId),
+      eq(professionalTenants.status, 'approved')
+    ))
+    .where(eq(users.role, 'professional'))
+    .orderBy(users.name);
+}
+
+/**
+ * Atualiza apenas o telefone de contato de um profissional. Uso restrito à
+ * tela de Profissionais da recepção/financeiro (permCanViewProfessionals) —
+ * por isso só aceita o campo telefone, nada de CPF/CNPJ/registro/credenciais.
+ */
+export async function updateProfessionalPhone(professionalId: number, tenantId: number, phone: string) {
+  const db = await getDb();
+  if (!db) throw new Error('DB unavailable');
+
+  // Isolamento de tenant: só atualiza se o profissional pertencer a este tenant.
+  const link = await db.select({ id: professionalTenants.id })
+    .from(professionalTenants)
+    .where(and(
+      eq(professionalTenants.professionalId, professionalId),
+      eq(professionalTenants.tenantId, tenantId)
+    ))
+    .limit(1);
+  if (link.length === 0) throw new Error('Profissional não pertence a este tenant.');
+
+  await db.update(users).set({ phone }).where(eq(users.id, professionalId));
+}
+
 export async function getProfessionalsByTenant(tenantId: number, status?: string) {
   const db = await getDb();
   if (!db) return [];
@@ -1138,7 +1210,10 @@ export async function createStaffUser(data: {
   permCanViewProfessionals: boolean;
   permCanViewRooms: boolean;
   permCanCheckIn: boolean;
-  permCanManagePatients: boolean;
+  // Descontinuado na UI (Configurações > Usuários Internos) — recepcionista
+  // nunca precisou editar dados de paciente. Mantido opcional aqui só para
+  // não quebrar chamadas antigas; sempre grava false para novos usuários.
+  permCanManagePatients?: boolean;
 }) {
   const db = await getDb();
   if (!db) throw new Error('DB unavailable');
@@ -1153,7 +1228,7 @@ export async function createStaffUser(data: {
     permCanViewProfessionals: data.permCanViewProfessionals,
     permCanViewRooms: data.permCanViewRooms,
     permCanCheckIn: data.permCanCheckIn,
-    permCanManagePatients: data.permCanManagePatients,
+    permCanManagePatients: data.permCanManagePatients ?? false,
   } as any);
 }
 
@@ -1166,6 +1241,7 @@ export async function updateStaffUser(id: number, tenantId: number, data: Partia
   permCanViewProfessionals: boolean;
   permCanViewRooms: boolean;
   permCanCheckIn: boolean;
+  // Descontinuado na UI — ver nota em createStaffUser.
   permCanManagePatients: boolean;
 }>) {
   const db = await getDb();
@@ -1187,6 +1263,15 @@ export async function deleteStaffUser(id: number, tenantId: number) {
 export async function getReceptionBookings(tenantId: number, startMs: number, endMs: number) {
   const db = await getDb();
   if (!db) return [];
+  // BUG CORRIGIDO: a condicao anterior comparava a coluna (enum booking_status)
+  // com o valor 'cancelled', que NAO existe no enum (os valores validos sao
+  // draft/pending_payment/confirmed/canceled_with_credit/no_show/completed).
+  // No Postgres isso lanca "invalid input value for enum booking_status" e
+  // derruba a query inteira - por isso o Painel de Recepcao sempre retornava
+  // vazio, mesmo com reservas existindo no dia. O frontend ja exibe o status
+  // "Cancelada" normalmente (ha badge propria para canceled_with_credit),
+  // entao aqui simplesmente listamos todas as reservas do dia, sem excluir
+  // nenhum status - igual ao padrao ja usado em admin.listAllBookings.
   return db.select({
     id: bookings.id,
     startTime: bookings.startTime,
@@ -1201,8 +1286,7 @@ export async function getReceptionBookings(tenantId: number, startMs: number, en
   .where(and(
     eq(bookings.tenantId, tenantId),
     gte(bookings.startTime, new Date(startMs)),
-    lte(bookings.startTime, new Date(endMs)),
-    sql`${bookings.status} != 'cancelled'`
+    lte(bookings.startTime, new Date(endMs))
   ))
   .orderBy(bookings.startTime);
 }

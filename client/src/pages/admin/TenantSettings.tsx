@@ -27,16 +27,14 @@ type StaffUser = {
     canViewProfessionals: boolean;
     canViewRooms: boolean;
     canCheckIn: boolean;
-    canManagePatients: boolean;
   };
 };
 
 const PERM_LABELS: { key: keyof StaffUser["permissions"]; label: string; desc: string }[] = [
   { key: "canViewBookings",       label: "Ver Reservas",         desc: "Consultar agenda e reservas do dia" },
-  { key: "canViewProfessionals",  label: "Ver Profissionais",    desc: "Listar profissionais e especialidades" },
+  { key: "canViewProfessionals",  label: "Ver Profissionais",    desc: "Listar profissionais, especialidades e atualizar contato" },
   { key: "canViewRooms",          label: "Ver Salas",            desc: "Consultar salas e disponibilidade" },
   { key: "canCheckIn",            label: "Registrar Check-in",   desc: "Confirmar chegada de pacientes" },
-  { key: "canManagePatients",     label: "Gerenciar Pacientes",  desc: "Editar dados de pacientes" },
 ];
 
 const DEFAULT_PERMS: StaffUser["permissions"] = {
@@ -44,7 +42,6 @@ const DEFAULT_PERMS: StaffUser["permissions"] = {
   canViewProfessionals: true,
   canViewRooms: true,
   canCheckIn: true,
-  canManagePatients: false,
 };
 
 export default function TenantSettings() {

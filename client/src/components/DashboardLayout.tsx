@@ -59,7 +59,9 @@ const getMenuItems = (role: string, user?: any) => {
       items.push({ icon: Lock, label: "Bloqueios de Sala", path: "/admin/room-blocks" });
     }
     if (user?.permCanViewProfessionals) {
-      items.push({ icon: Users, label: "Profissionais", path: "/admin/professionals" });
+      // Recepcionista/financeiro usam uma tela dedicada (só visualizar +
+      // atualizar telefone), diferente da tela completa do admin.
+      items.push({ icon: Users, label: "Profissionais", path: "/reception/professionals" });
     }
     return items;
   }

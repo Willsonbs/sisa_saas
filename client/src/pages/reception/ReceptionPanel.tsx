@@ -1,11 +1,19 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Search, CalendarDays, Clock, MapPin, User, ChevronLeft, ChevronRight, CheckCircle2, AlertCircle, XCircle, HelpCircle } from "lucide-react";
+import { Search, CalendarDays, Clock, MapPin, User, ChevronLeft, ChevronRight, CheckCircle2, AlertCircle, XCircle, HelpCircle, X } from "lucide-react";
+
+// Remove acentos para busca mais tolerante (ex: "goncalves" encontra "Gonçalves")
+function normalize(str: string) {
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   confirmed:              { label: "Confirmada",     color: "bg-green-100 text-green-700",   icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
@@ -31,6 +39,9 @@ function toDateStr(d: Date) {
 export default function ReceptionPanel() {
   const [search, setSearch] = useState("");
   const [selectedDate, setSelectedDate] = useState(() => new Date());
+  const [selectedProfessional, setSelectedProfessional] = useState<{ id: number; name: string } | null>(null);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchBoxRef = useRef<HTMLDivElement>(null);
 
   const dateStr = toDateStr(selectedDate);
 
@@ -39,16 +50,54 @@ export default function ReceptionPanel() {
     { refetchInterval: 30_000 }
   );
 
+  const { data: professionals = [] } = trpc.reception.professionals.useQuery();
+
+  // Sugestões de profissionais cadastrados que batem com o texto digitado
+  // (busca por substring, sem diferenciar maiúsculas/minúsculas ou acentos —
+  // ex: "gonça" encontra "Erika Gonçalves Leitão").
+  const suggestions = useMemo(() => {
+    if (selectedProfessional || !search.trim()) return [];
+    const q = normalize(search);
+    return professionals.filter((p) => normalize(p.name).includes(q)).slice(0, 6);
+  }, [professionals, search, selectedProfessional]);
+
+  function selectProfessional(p: { id: number; name: string }) {
+    setSelectedProfessional(p);
+    setSearch(p.name);
+    setShowSuggestions(false);
+  }
+
+  function clearProfessionalFilter() {
+    setSelectedProfessional(null);
+    setSearch("");
+  }
+
+  // Fecha a lista de sugestões ao clicar fora
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const filtered = useMemo(() => {
+    // Profissional selecionado via autocomplete: filtra só as reservas dele
+    if (selectedProfessional) {
+      return bookings.filter((b) => b.professionalId === selectedProfessional.id);
+    }
+    // Sem seleção: busca livre por texto (nome do profissional, sala ou paciente)
     if (!search.trim()) return bookings;
-    const q = search.toLowerCase();
+    const q = normalize(search);
     return bookings.filter(
       (b) =>
-        (b.professionalName ?? "").toLowerCase().includes(q) ||
-        (b.roomName ?? "").toLowerCase().includes(q) ||
-        (b.patientName ?? "").toLowerCase().includes(q)
+        normalize(b.professionalName ?? "").includes(q) ||
+        normalize(b.roomName ?? "").includes(q) ||
+        normalize(b.patientName ?? "").includes(q)
     );
-  }, [bookings, search]);
+  }, [bookings, search, selectedProfessional]);
 
   function prevDay() {
     setSelectedDate((d) => { const n = new Date(d); n.setDate(n.getDate() - 1); return n; });
@@ -97,21 +146,53 @@ export default function ReceptionPanel() {
           </div>
         </div>
 
-        {/* Search */}
-        <div className="relative">
+        {/* Search + autocomplete de profissional cadastrado */}
+        <div className="relative" ref={searchBoxRef}>
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por profissional, sala ou nome do paciente..."
-            className="pl-10 h-11 text-base"
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setShowSuggestions(true);
+              if (selectedProfessional) setSelectedProfessional(null);
+            }}
+            onFocus={() => setShowSuggestions(true)}
+            placeholder="Buscar por profissional cadastrado, sala ou nome do paciente..."
+            className="pl-10 pr-9 h-11 text-base"
           />
+          {(search || selectedProfessional) && (
+            <button
+              type="button"
+              onClick={clearProfessionalFilter}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              title="Limpar"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+
+          {showSuggestions && suggestions.length > 0 && (
+            <div className="absolute z-20 mt-1 w-full bg-white border rounded-lg shadow-lg overflow-hidden">
+              {suggestions.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => selectProfessional(p)}
+                  className="w-full text-left px-4 py-2 text-sm hover:bg-[#EDE8E3] flex items-center gap-2"
+                >
+                  <User className="h-3.5 w-3.5 text-gray-400" />
+                  {p.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Summary bar */}
         <div className="flex items-center gap-4 text-sm text-gray-500">
           <span className="font-medium text-gray-700">{filtered.length} reserva{filtered.length !== 1 ? "s" : ""}</span>
-          {search && <span>· filtrando por "{search}"</span>}
+          {selectedProfessional && <span>· filtrando por profissional: <strong>{selectedProfessional.name}</strong></span>}
+          {!selectedProfessional && search && <span>· filtrando por "{search}"</span>}
           <span className="ml-auto text-xs">Atualiza a cada 30s</span>
         </div>
 
@@ -127,10 +208,14 @@ export default function ReceptionPanel() {
             <CardContent className="py-16 text-center text-gray-400">
               <CalendarDays className="h-12 w-12 mx-auto mb-3 opacity-30" />
               <p className="font-medium text-gray-500">
-                {search ? "Nenhuma reserva encontrada para esta busca" : "Nenhuma reserva para este dia"}
+                {selectedProfessional
+                  ? `Nenhuma reserva de ${selectedProfessional.name} neste dia`
+                  : search
+                  ? "Nenhuma reserva encontrada para esta busca"
+                  : "Nenhuma reserva para este dia"}
               </p>
-              {search && (
-                <Button variant="ghost" size="sm" onClick={() => setSearch("")} className="mt-2 text-[#7C5C4A]">
+              {(search || selectedProfessional) && (
+                <Button variant="ghost" size="sm" onClick={clearProfessionalFilter} className="mt-2 text-[#7C5C4A]">
                   Limpar busca
                 </Button>
               )}
