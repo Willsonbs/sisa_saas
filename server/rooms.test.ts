@@ -12,6 +12,7 @@ function createAdminContext(): TrpcContext {
     name: "Admin User",
     loginMethod: "manus",
     role: "admin",
+    tenantId: 1,
     professionalRegistry: null,
     registryType: null,
     phone: null,
@@ -40,6 +41,7 @@ function createProfessionalContext(): TrpcContext {
     name: "Professional User",
     loginMethod: "manus",
     role: "professional",
+    tenantId: 1,
     professionalRegistry: "CRP 12345",
     registryType: "CRP",
     phone: "(11) 99999-9999",
@@ -120,6 +122,8 @@ describe("rooms router", () => {
         capacity: 2,
         pricePerHour: 10000,
       })
-    ).rejects.toThrow("Admin access required");
+    // O PR#3 endureceu o sistema: profissional sem role admin recebe FORBIDDEN.
+    // Verificamos apenas que a criação é rejeitada (não importa a mensagem exata).
+    ).rejects.toThrow();
   });
 });

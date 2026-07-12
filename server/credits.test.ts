@@ -12,6 +12,7 @@ function createProfessionalContext(id: number = 2): TrpcContext {
     name: `Professional ${id}`,
     loginMethod: "manus",
     role: "professional",
+    tenantId: 1,
     professionalRegistry: "CRP 12345",
     registryType: "CRP",
     phone: "(11) 99999-9999",
