@@ -6,7 +6,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import * as db from "./db";
 import { getCancellationRules, createCancellationRule, updateCancellationRule, deleteCancellationRule } from "./db";
-import { getCreditPackageById, CREDIT_PACKAGES } from "./products";
+import { getCreditPackageById, CREDIT_PACKAGES, buildCustomCreditPackage, MIN_CUSTOM_CREDIT_AMOUNT_CENTS } from "./products";
 import { 
   sendEmail, 
   getBookingConfirmationEmail, 
@@ -896,11 +896,17 @@ export const appRouter = router({
     // Create Stripe checkout session for credit purchase
     createCheckout: professionalProcedure
       .input(z.object({
-        packageId: z.string(),
+        packageId: z.string().optional(),
+        // Valor avulso em centavos (ex: R$ 55,45 = 5545). Mínimo de R$ 50,00.
+        customAmountCents: z.number().int().min(MIN_CUSTOM_CREDIT_AMOUNT_CENTS).optional(),
         paymentMethod: z.enum(['card', 'pix']).optional().default('card'),
+      }).refine(data => !!data.packageId !== !!data.customAmountCents, {
+        message: 'Informe um pacote OU um valor avulso, não os dois.',
       }))
       .mutation(async ({ ctx, input }) => {
-        const pkg = getCreditPackageById(input.packageId);
+        const pkg = input.customAmountCents !== undefined
+          ? buildCustomCreditPackage(input.customAmountCents)
+          : getCreditPackageById(input.packageId!);
         if (!pkg) throw new TRPCError({ code: 'NOT_FOUND', message: 'Pacote não encontrado' });
         
         const stripe = await import('stripe').then(m => new m.default(process.env.STRIPE_SECRET_KEY!));

@@ -19,37 +19,48 @@ export const CREDIT_PACKAGES: CreditPackage[] = [
     name: "Pacote Inicial",
     description: "500 créditos para começar",
     credits: 50000, // R$ 500 in cents
-    price: 50000, // R$ 500
+    price: 50000, // R$ 500 (sem bônus)
     popular: false,
   },
   {
-    id: "credits_1000",
+    id: "credits_800",
     name: "Pacote Profissional",
-    description: "1.000 créditos com desconto",
-    credits: 100000, // R$ 1.000 in cents
-    price: 95000, // R$ 950 (5% discount)
+    description: "840 créditos com desconto",
+    credits: 84000, // R$ 840 in cents
+    price: 80000, // R$ 800 (5% de bônus em créditos)
     popular: true,
   },
   {
-    id: "credits_2000",
+    id: "credits_1000",
     name: "Pacote Premium",
-    description: "2.000 créditos com melhor desconto",
-    credits: 200000, // R$ 2.000 in cents
-    price: 180000, // R$ 1.800 (10% discount)
-    popular: false,
-  },
-  {
-    id: "credits_5000",
-    name: "Pacote Empresarial",
-    description: "5.000 créditos com máximo desconto",
-    credits: 500000, // R$ 5.000 in cents
-    price: 425000, // R$ 4.250 (15% discount)
+    description: "1.100 créditos com máximo desconto",
+    credits: 110000, // R$ 1.100 in cents
+    price: 100000, // R$ 1.000 (10% de bônus em créditos)
     popular: false,
   },
 ];
 
+// Valor mínimo para compra de créditos avulsos (em centavos) — R$ 50,00
+export const MIN_CUSTOM_CREDIT_AMOUNT_CENTS = 5000;
+
 export function getCreditPackageById(id: string): CreditPackage | undefined {
   return CREDIT_PACKAGES.find(pkg => pkg.id === id);
+}
+
+/**
+ * Monta um "pacote" avulso a partir de um valor livre em centavos, sem bônus
+ * (crédito = valor pago, 1:1). Usado quando o profissional escolhe comprar um
+ * valor específico em vez de um dos pacotes fixos.
+ */
+export function buildCustomCreditPackage(amountCents: number): CreditPackage {
+  return {
+    id: "custom",
+    name: "Créditos Avulsos",
+    description: `${formatCurrency(amountCents)} em créditos`,
+    credits: amountCents,
+    price: amountCents,
+    popular: false,
+  };
 }
 
 export function formatCurrency(cents: number): string {
