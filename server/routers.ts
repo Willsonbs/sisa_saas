@@ -1071,6 +1071,7 @@ export const appRouter = router({
             status: b.status as string,
             receptionNotes: b.receptionNotes as string | null,
             roomName: room?.name ?? '—',
+            professionalId: b.professionalId,
             professionalName: prof?.name ?? '—',
             professionalSpecialty: prof?.specialty ?? null,
             patientName: decrypt(b.patientName) ?? b.patientName as string | null,
@@ -1086,6 +1087,12 @@ export const appRouter = router({
         }
         return enriched;
       }),
+
+    // Lista enxuta de profissionais cadastrados no tenant, para autocomplete
+    // de filtro no Painel de Recepção (não expõe email/CPF/telefone).
+    professionals: receptionistProcedure.query(async ({ ctx }) => {
+      return db.getProfessionalNamesByTenant(ctx.auth.tenantId!);
+    }),
   }),
 
   admin: router({
