@@ -55,7 +55,9 @@ const getMenuItems = (role: string, user?: any) => {
       items.push({ icon: CalendarDays, label: "Gerenciar Reservas", path: "/admin/bookings" });
     }
     if (user?.permCanViewRooms) {
-      items.push({ icon: Building2, label: "Salas", path: "/admin/rooms" });
+      // Mesma tela completa do admin (criar, editar, inativar/excluir salas) —
+      // o dono da empresa pode delegar essa responsabilidade à recepção/financeiro.
+      items.push({ icon: Building2, label: "Gerenciar Salas", path: "/admin/rooms" });
       items.push({ icon: Lock, label: "Bloqueios de Sala", path: "/admin/room-blocks" });
     }
     if (user?.permCanViewProfessionals) {

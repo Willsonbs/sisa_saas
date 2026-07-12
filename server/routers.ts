@@ -48,6 +48,19 @@ const professionalsManageProcedure = protectedProcedure.use(({ ctx, next }) => {
   return next({ ctx });
 });
 
+// Gerenciamento de salas: admin sempre tem acesso; recepcionista/financeiro
+// só quando a permissão "Ver Salas" estiver habilitada para o usuário (mesma
+// tela e funções do administrador: criar, editar, inativar/excluir salas).
+const roomsManageProcedure = protectedProcedure.use(({ ctx, next }) => {
+  const isAdmin = ctx.auth.role === 'admin';
+  const isPermittedStaff = (ctx.auth.role === 'receptionist' || ctx.auth.role === 'financial')
+    && !!ctx.user?.permCanViewRooms;
+  if (!isAdmin && !isPermittedStaff) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'Sem permissão para gerenciar salas.' });
+  }
+  return next({ ctx });
+});
+
 // Staff procedure (admin, receptionist, financial, super_admin)
 const staffProcedure = protectedProcedure.use(({ ctx, next }) => {
   const allowed = ['admin', 'super_admin', 'receptionist', 'financial'];
@@ -259,7 +272,7 @@ export const appRouter = router({
         };
       }),
     
-    create: adminProcedure
+    create: roomsManageProcedure
       .input(z.object({
         name: z.string(),
         description: z.string().optional(),
@@ -291,7 +304,7 @@ export const appRouter = router({
         return { success: true };
       }),
     
-    update: adminProcedure
+    update: roomsManageProcedure
       .input(z.object({
         id: z.number(),
         name: z.string().optional(),
@@ -348,7 +361,7 @@ export const appRouter = router({
         return { url };
       }),
     
-    delete: adminProcedure
+    delete: roomsManageProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
         // SECURITY: garante que a sala pertence ao tenant do admin antes de desativar
@@ -358,7 +371,7 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    deleteHard: adminProcedure
+    deleteHard: roomsManageProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
         const dbConn = await db.getDb();
@@ -1420,7 +1433,7 @@ export const appRouter = router({
 
   // ============= ROOM BLOCKS =============
   roomBlocks: router({
-    list: adminProcedure
+    list: roomsManageProcedure
       .input(z.object({
         roomId: z.number().optional(),
         startDate: z.date(),
@@ -1434,7 +1447,7 @@ export const appRouter = router({
         return db.getAllRoomBlocksByTenant(tenantId, input.startDate, input.endDate);
       }),
     
-    create: adminProcedure
+    create: roomsManageProcedure
       .input(z.object({
         roomId: z.number(),
         startTime: z.date(),
@@ -1474,7 +1487,7 @@ export const appRouter = router({
         return { success: true };
       }),
     
-    delete: adminProcedure
+    delete: roomsManageProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ ctx, input }) => {
         const tenantId = ctx.auth.tenantId;
