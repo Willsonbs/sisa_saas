@@ -32,7 +32,7 @@ type StaffUser = {
 
 const PERM_LABELS: { key: keyof StaffUser["permissions"]; label: string; desc: string }[] = [
   { key: "canViewBookings",       label: "Ver Reservas",         desc: "Consultar agenda e reservas do dia" },
-  { key: "canViewProfessionals",  label: "Ver Profissionais",    desc: "Listar profissionais, especialidades e atualizar contato" },
+  { key: "canViewProfessionals",  label: "Gerenciar Profissionais", desc: "Cadastrar, editar e listar profissionais (mesma tela do administrador)" },
   { key: "canViewRooms",          label: "Ver Salas",            desc: "Consultar salas e disponibilidade" },
   { key: "canCheckIn",            label: "Registrar Check-in",   desc: "Confirmar chegada de pacientes" },
 ];

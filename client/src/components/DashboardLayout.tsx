@@ -59,9 +59,10 @@ const getMenuItems = (role: string, user?: any) => {
       items.push({ icon: Lock, label: "Bloqueios de Sala", path: "/admin/room-blocks" });
     }
     if (user?.permCanViewProfessionals) {
-      // Recepcionista/financeiro usam uma tela dedicada (só visualizar +
-      // atualizar telefone), diferente da tela completa do admin.
-      items.push({ icon: Users, label: "Profissionais", path: "/reception/professionals" });
+      // Mesma tela completa do admin (cadastro, edição e exclusão de
+      // profissionais) — o dono da empresa pode delegar essa
+      // responsabilidade à recepção/financeiro via esta permissão.
+      items.push({ icon: Users, label: "Profissionais", path: "/admin/professionals" });
     }
     return items;
   }
