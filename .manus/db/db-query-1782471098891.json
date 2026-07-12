@@ -1,0 +1,103 @@
+{
+  "query": "SELECT id, startTime, endTime, status, tenantId, professionalId, roomId FROM bookings WHERE tenantId = 1 ORDER BY startTime DESC LIMIT 10;\nSELECT NOW(), UTC_TIMESTAMP(), UNIX_TIMESTAMP(NOW()) * 1000 as nowMs;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2K2nZhchkWvioe9.44e5ea8f5c60 --database BKg3JWXSVAysuyURANpvoX --execute SELECT id, startTime, endTime, status, tenantId, professionalId, roomId FROM bookings WHERE tenantId = 1 ORDER BY startTime DESC LIMIT 10;\nSELECT NOW(), UTC_TIMESTAMP(), UNIX_TIMESTAMP(NOW()) * 1000 as nowMs;",
+  "rows": [
+    {
+      "id": "330004",
+      "startTime": "2026-06-26 13:00:00",
+      "endTime": "2026-06-26 14:00:00",
+      "status": "confirmed",
+      "tenantId": "1",
+      "professionalId": "300001",
+      "roomId": "2"
+    },
+    {
+      "id": "330005",
+      "startTime": "2026-06-26 13:00:00",
+      "endTime": "2026-06-26 14:00:00",
+      "status": "confirmed",
+      "tenantId": "1",
+      "professionalId": "300002",
+      "roomId": "3"
+    },
+    {
+      "id": "330001",
+      "startTime": "2026-06-26 11:00:00",
+      "endTime": "2026-06-26 12:00:00",
+      "status": "confirmed",
+      "tenantId": "1",
+      "professionalId": "690001",
+      "roomId": "1"
+    },
+    {
+      "id": "330002",
+      "startTime": "2026-06-26 11:00:00",
+      "endTime": "2026-06-26 12:00:00",
+      "status": "confirmed",
+      "tenantId": "1",
+      "professionalId": "150006",
+      "roomId": "2"
+    },
+    {
+      "id": "330003",
+      "startTime": "2026-06-26 11:00:00",
+      "endTime": "2026-06-26 12:00:00",
+      "status": "confirmed",
+      "tenantId": "1",
+      "professionalId": "150001",
+      "roomId": "3"
+    },
+    {
+      "id": "300001",
+      "startTime": "2026-06-24 20:00:00",
+      "endTime": "2026-06-24 21:00:00",
+      "status": "confirmed",
+      "tenantId": "1",
+      "professionalId": "150001",
+      "roomId": "2"
+    },
+    {
+      "id": "270002",
+      "startTime": "2026-06-24 18:10:00",
+      "endTime": "2026-06-24 19:10:00",
+      "status": "confirmed",
+      "tenantId": "1",
+      "professionalId": "150006",
+      "roomId": "1"
+    },
+    {
+      "id": "270001",
+      "startTime": "2026-06-24 17:00:00",
+      "endTime": "2026-06-24 18:00:00",
+      "status": "confirmed",
+      "tenantId": "1",
+      "professionalId": "570001",
+      "roomId": "1"
+    },
+    {
+      "id": "150001",
+      "startTime": "2026-06-22 19:00:00",
+      "endTime": "2026-06-22 20:00:00",
+      "status": "completed",
+      "tenantId": "1",
+      "professionalId": "180003",
+      "roomId": "2"
+    },
+    {
+      "id": "240002",
+      "startTime": "2026-06-22 18:10:00",
+      "endTime": "2026-06-22 19:10:00",
+      "status": "completed",
+      "tenantId": "1",
+      "professionalId": "180003",
+      "roomId": "3"
+    }
+  ],
+  "messages": [
+    "NOW()\tUTC_TIMESTAMP()\tnowMs",
+    "2026-06-26 10:51:38\t2026-06-26 10:51:39\t1782471098000"
+  ],
+  "stdout": "id\tstartTime\tendTime\tstatus\ttenantId\tprofessionalId\troomId\n330004\t2026-06-26 13:00:00\t2026-06-26 14:00:00\tconfirmed\t1\t300001\t2\n330005\t2026-06-26 13:00:00\t2026-06-26 14:00:00\tconfirmed\t1\t300002\t3\n330001\t2026-06-26 11:00:00\t2026-06-26 12:00:00\tconfirmed\t1\t690001\t1\n330002\t2026-06-26 11:00:00\t2026-06-26 12:00:00\tconfirmed\t1\t150006\t2\n330003\t2026-06-26 11:00:00\t2026-06-26 12:00:00\tconfirmed\t1\t150001\t3\n300001\t2026-06-24 20:00:00\t2026-06-24 21:00:00\tconfirmed\t1\t150001\t2\n270002\t2026-06-24 18:10:00\t2026-06-24 19:10:00\tconfirmed\t1\t150006\t1\n270001\t2026-06-24 17:00:00\t2026-06-24 18:00:00\tconfirmed\t1\t570001\t1\n150001\t2026-06-22 19:00:00\t2026-06-22 20:00:00\tcompleted\t1\t180003\t2\n240002\t2026-06-22 18:10:00\t2026-06-22 19:10:00\tcompleted\t1\t180003\t3\nNOW()\tUTC_TIMESTAMP()\tnowMs\n2026-06-26 10:51:38\t2026-06-26 10:51:39\t1782471098000\n",
+  "stderr": "",
+  "execution_time_ms": 1452
+}

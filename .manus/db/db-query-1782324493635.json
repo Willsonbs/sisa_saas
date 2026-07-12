@@ -1,0 +1,9 @@
+{
+  "query": "\nALTER TABLE users\n  ADD COLUMN permCanViewBookings TINYINT(1) NOT NULL DEFAULT 1,\n  ADD COLUMN permCanViewProfessionals TINYINT(1) NOT NULL DEFAULT 1,\n  ADD COLUMN permCanViewRooms TINYINT(1) NOT NULL DEFAULT 1,\n  ADD COLUMN permCanCheckIn TINYINT(1) NOT NULL DEFAULT 1,\n  ADD COLUMN permCanManagePatients TINYINT(1) NOT NULL DEFAULT 0;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2K2nZhchkWvioe9.44e5ea8f5c60 --database BKg3JWXSVAysuyURANpvoX --execute \nALTER TABLE users\n  ADD COLUMN permCanViewBookings TINYINT(1) NOT NULL DEFAULT 1,\n  ADD COLUMN permCanViewProfessionals TINYINT(1) NOT NULL DEFAULT 1,\n  ADD COLUMN permCanViewRooms TINYINT(1) NOT NULL DEFAULT 1,\n  ADD COLUMN permCanCheckIn TINYINT(1) NOT NULL DEFAULT 1,\n  ADD COLUMN permCanManagePatients TINYINT(1) NOT NULL DEFAULT 0;\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1342
+}

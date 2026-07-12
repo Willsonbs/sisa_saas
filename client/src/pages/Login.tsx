@@ -23,6 +23,7 @@ export default function Login() {
     if (!loading && isAuthenticated && user) {
       if (user.role === 'super_admin') setLocation('/sisa/dashboard');
       else if (user.role === 'admin') setLocation('/admin');
+      else if (user.role === 'receptionist' || user.role === 'financial') setLocation('/reception');
       else setLocation('/dashboard');
     }
   }, [isAuthenticated, user, loading, setLocation]);
@@ -35,6 +36,8 @@ export default function Login() {
           window.location.href = '/sisa/dashboard';
         } else if (data.user.role === 'admin') {
           window.location.href = '/admin';
+        } else if (data.user.role === 'receptionist' || data.user.role === 'financial') {
+          window.location.href = '/reception';
         } else {
           window.location.href = '/dashboard';
         }

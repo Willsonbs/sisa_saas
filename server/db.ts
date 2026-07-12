@@ -1,5 +1,6 @@
-import { eq, and, gte, lte, lt, gt, desc, sql, or } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
+import { eq, and, gte, lte, desc, sql, or } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
 import { 
   InsertUser, users, 
   rooms, InsertRoom, Room,
@@ -19,13 +20,24 @@ import {
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
-let _db: ReturnType<typeof drizzle> | null = null;
+let _db: ReturnType<typeof drizzle<typeof import('../drizzle/schema')>> | null = null;
+let _pool: Pool | null = null;
 
 // Lazily create the drizzle instance so local tooling can run without a DB.
+// SUPABASE_URL takes priority over DATABASE_URL to allow migration without touching reserved env vars.
 export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
+  if (!_db) {
+    const connStr = process.env.SUPABASE_URL || process.env.DATABASE_URL || '';
+    if (!connStr) return null;
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      // Supabase pooler (port 6543) and direct connections require SSL
+      const needsSsl = connStr.includes('supabase.com') || connStr.includes('supabase.co');
+      _pool = new Pool({
+        connectionString: connStr,
+        ssl: needsSsl ? { rejectUnauthorized: false } : false,
+      });
+      _db = drizzle(_pool);
+      console.log(`[Database] Connected via ${process.env.SUPABASE_URL ? 'SUPABASE_URL' : 'DATABASE_URL'}`);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
@@ -171,7 +183,8 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       updateSet.lastSignedIn = new Date();
     }
 
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
+    await db.insert(users).values(values).onConflictDoUpdate({
+      target: users.email,
       set: updateSet,
     });
   } catch (error) {
@@ -224,7 +237,8 @@ export async function createProfessional(data: InsertUser) {
     return;
   }
 
-  await db.insert(users).values(data);
+  const result = await db.insert(users).values(data).returning({ id: users.id });
+  return result[0] ?? null;
 }
 
 export async function updateUserProfile(userId: number, data: Partial<InsertUser>) {
@@ -237,23 +251,74 @@ export async function updateUserProfile(userId: number, data: Partial<InsertUser
 export async function getAllProfessionals(tenantId?: number) {
   const db = await getDb();
   if (!db) return [];
-  
+
+  // Subquery: sum of credit balance per professional
+  const creditSumSq = db
+    .select({
+      professionalId: credits.professionalId,
+      creditBalance: sql<number>`COALESCE(SUM(${credits.amount}), 0)`.as('creditBalance'),
+    })
+    .from(credits)
+    .groupBy(credits.professionalId)
+    .as('creditSums');
+
   if (tenantId) {
-    // Get professionals linked to this tenant
-    const links = await db.select().from(professionalTenants)
-      .where(eq(professionalTenants.tenantId, tenantId));
-    
-    if (links.length === 0) return [];
-    
-    const professionalIds = links.map(l => l.professionalId);
-    return db.select().from(users)
-      .where(and(
-        eq(users.role, 'professional'),
-        sql`${users.id} IN (${professionalIds.join(',')})`
-      ));
+    // Single JOIN query — avoids two-step fetch and IN() with stale IDs
+    return db
+      .select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        phone: users.phone,
+        specialty: users.specialty,
+        professionalRegistry: users.professionalRegistry,
+        registryType: users.registryType,
+        bio: users.bio,
+        cpf: users.cpf,
+        cnpj: users.cnpj,
+        dateOfBirth: users.dateOfBirth,
+        gender: users.gender,
+        address: users.address,
+        publicProfileSlug: users.publicProfileSlug,
+        role: users.role,
+        createdAt: users.createdAt,
+        creditBalance: sql<number>`COALESCE(${creditSumSq.creditBalance}, 0)`,
+      })
+      .from(users)
+      .innerJoin(
+        professionalTenants,
+        and(
+          eq(professionalTenants.professionalId, users.id),
+          eq(professionalTenants.tenantId, tenantId)
+        )
+      )
+      .leftJoin(creditSumSq, eq(users.id, creditSumSq.professionalId))
+      .where(eq(users.role, 'professional'));
   }
-  
-  return db.select().from(users).where(eq(users.role, 'professional'));
+
+  return db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      phone: users.phone,
+      specialty: users.specialty,
+      professionalRegistry: users.professionalRegistry,
+      registryType: users.registryType,
+      bio: users.bio,
+      cpf: users.cpf,
+      cnpj: users.cnpj,
+      dateOfBirth: users.dateOfBirth,
+      gender: users.gender,
+      address: users.address,
+      publicProfileSlug: users.publicProfileSlug,
+      role: users.role,
+      createdAt: users.createdAt,
+      creditBalance: sql<number>`COALESCE(${creditSumSq.creditBalance}, 0)`,
+    })
+    .from(users)
+    .leftJoin(creditSumSq, eq(users.id, creditSumSq.professionalId))
+    .where(eq(users.role, 'professional'));
 }
 
 // ============= ROOMS =============
@@ -427,18 +492,15 @@ export async function checkBookingConflict(roomId: number, startTime: Date, endT
   const db = await getDb();
   if (!db) return false;
   
+  // Overlap estrito: exclui horários adjacentes (ex: 08:00-09:00 e 09:00-10:00 NÃO conflitam).
+  // Dois intervalos [A,B] e [C,D] se sobrepõem se e somente se A < D && C < B.
   const conditions: any[] = [
     eq(bookings.roomId, roomId),
     or(
       eq(bookings.status, 'confirmed'),
       eq(bookings.status, 'pending_payment')
     ),
-    // Overlap em intervalo semiaberto [startTime, endTime): dois agendamentos que
-    // apenas se tocam (fim de um = inicio do outro) NAO sao conflito.
-    and(
-      lt(bookings.startTime, endTime),
-      gt(bookings.endTime, startTime)
-    )
+    sql`${bookings.startTime} < ${endTime} AND ${bookings.endTime} > ${startTime}`
   ];
   
   if (excludeBookingId) {
@@ -453,14 +515,11 @@ export async function checkRoomBlockConflict(roomId: number, startTime: Date, en
   const db = await getDb();
   if (!db) return false;
   
+  // Overlap estrito: horários adjacentes não conflitam (A < D && C < B)
   const conflicts = await db.select().from(roomBlocks)
     .where(and(
       eq(roomBlocks.roomId, roomId),
-      // Mesma regra de overlap semiaberto usada em checkBookingConflict.
-      and(
-        lt(roomBlocks.startTime, endTime),
-        gt(roomBlocks.endTime, startTime)
-      )
+      sql`${roomBlocks.startTime} < ${endTime} AND ${roomBlocks.endTime} > ${startTime}`
     ))
     .limit(1);
   
@@ -652,18 +711,24 @@ export async function getCancellationRules(tenantId?: number) {
   return db.select().from(cancellationRules).orderBy(desc(cancellationRules.hoursBeforeBooking));
 }
 
-export async function updateCancellationRule(id: number, data: Partial<InsertCancellationRule>) {
+export async function updateCancellationRule(id: number, data: Partial<InsertCancellationRule>, tenantId?: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  await db.update(cancellationRules).set(data).where(eq(cancellationRules.id, id));
+  // SECURITY: se tenantId fornecido, garante que a regra pertence ao tenant
+  const condition = tenantId
+    ? and(eq(cancellationRules.id, id), eq(cancellationRules.tenantId, tenantId))
+    : eq(cancellationRules.id, id);
+  await db.update(cancellationRules).set(data).where(condition);
 }
 
-export async function deleteCancellationRule(id: number) {
+export async function deleteCancellationRule(id: number, tenantId?: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  await db.delete(cancellationRules).where(eq(cancellationRules.id, id));
+  // SECURITY: se tenantId fornecido, garante que a regra pertence ao tenant
+  const condition = tenantId
+    ? and(eq(cancellationRules.id, id), eq(cancellationRules.tenantId, tenantId))
+    : eq(cancellationRules.id, id);
+  await db.delete(cancellationRules).where(condition);
 }
 
 // ============= AUDIT LOGS =============
@@ -722,10 +787,14 @@ export async function getWaitlistByProfessional(professionalId: number, tenantId
     .orderBy(desc(waitlistEntries.createdAt));
 }
 
-export async function updateWaitlistEntry(id: number, data: Partial<InsertWaitlistEntry>) {
+export async function updateWaitlistEntry(id: number, data: Partial<InsertWaitlistEntry>, professionalId?: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(waitlistEntries).set(data).where(eq(waitlistEntries.id, id));
+  // SECURITY: se professionalId fornecido, garante que a entrada pertence ao profissional
+  const condition = professionalId
+    ? and(eq(waitlistEntries.id, id), eq(waitlistEntries.professionalId, professionalId))
+    : eq(waitlistEntries.id, id);
+  await db.update(waitlistEntries).set(data).where(condition);
 }
 
 // ============= CONSENT RECORDS =============
@@ -776,14 +845,17 @@ export async function getUnreadNotifications(userId: number) {
     .orderBy(desc(notifications.createdAt));
 }
 
-export async function markNotificationAsRead(id: number) {
+export async function markNotificationAsRead(id: number, userId?: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
+  // SECURITY: se userId fornecido, garante que a notificação pertence ao usuário
+  const condition = userId
+    ? and(eq(notifications.id, id), eq(notifications.userId, userId))
+    : eq(notifications.id, id);
   await db.update(notifications).set({ 
     isRead: true, 
     readAt: new Date() 
-  }).where(eq(notifications.id, id));
+  }).where(condition);
 }
 
 export async function markAllNotificationsAsRead(userId: number) {
@@ -1015,4 +1087,108 @@ export async function getProfessionalAppointmentDuration(professionalId: number)
     return (result[0] as any).appointmentDurationMinutes as number;
   }
   return 60;
+}
+
+// ============= STAFF (Internal Users: receptionist, financial) =============
+
+export async function getStaffByTenant(tenantId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({
+    id: users.id,
+    name: users.name,
+    email: users.email,
+    role: users.role,
+    createdAt: users.createdAt,
+    permCanViewBookings: users.permCanViewBookings,
+    permCanViewProfessionals: users.permCanViewProfessionals,
+    permCanViewRooms: users.permCanViewRooms,
+    permCanCheckIn: users.permCanCheckIn,
+    permCanManagePatients: users.permCanManagePatients,
+  })
+  .from(users)
+  .where(and(
+    eq(users.tenantId, tenantId),
+    sql`${users.role} IN ('receptionist','financial')`
+  ))
+  .orderBy(users.name);
+}
+
+export async function createStaffUser(data: {
+  name: string;
+  email: string;
+  passwordHash: string;
+  role: 'receptionist' | 'financial';
+  tenantId: number;
+  permCanViewBookings: boolean;
+  permCanViewProfessionals: boolean;
+  permCanViewRooms: boolean;
+  permCanCheckIn: boolean;
+  permCanManagePatients: boolean;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error('DB unavailable');
+  await db.insert(users).values({
+    name: data.name,
+    email: data.email,
+    passwordHash: data.passwordHash,
+    role: data.role,
+    tenantId: data.tenantId,
+    isActive: true,
+    permCanViewBookings: data.permCanViewBookings,
+    permCanViewProfessionals: data.permCanViewProfessionals,
+    permCanViewRooms: data.permCanViewRooms,
+    permCanCheckIn: data.permCanCheckIn,
+    permCanManagePatients: data.permCanManagePatients,
+  } as any);
+}
+
+export async function updateStaffUser(id: number, tenantId: number, data: Partial<{
+  name: string;
+  role: 'receptionist' | 'financial';
+  isActive: boolean;
+  passwordHash: string;
+  permCanViewBookings: boolean;
+  permCanViewProfessionals: boolean;
+  permCanViewRooms: boolean;
+  permCanCheckIn: boolean;
+  permCanManagePatients: boolean;
+}>) {
+  const db = await getDb();
+  if (!db) throw new Error('DB unavailable');
+  await db.update(users)
+    .set(data as any)
+    .where(and(eq(users.id, id), eq(users.tenantId, tenantId)));
+}
+
+export async function deleteStaffUser(id: number, tenantId: number) {
+  const db = await getDb();
+  if (!db) throw new Error('DB unavailable');
+  await db.delete(users)
+    .where(and(eq(users.id, id), eq(users.tenantId, tenantId)));
+}
+
+// ============= RECEPTION =============
+
+export async function getReceptionBookings(tenantId: number, startMs: number, endMs: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({
+    id: bookings.id,
+    startTime: bookings.startTime,
+    endTime: bookings.endTime,
+    status: bookings.status,
+    receptionNotes: bookings.receptionNotes,
+    roomId: bookings.roomId,
+    professionalId: bookings.professionalId,
+    patientName: bookings.patientName,
+  })
+  .from(bookings)
+  .where(and(
+    eq(bookings.tenantId, tenantId),
+    gte(bookings.startTime, new Date(startMs)),
+    lte(bookings.startTime, new Date(endMs)),
+    sql`${bookings.status} != 'cancelled'`
+  ))
+  .orderBy(bookings.startTime);
 }

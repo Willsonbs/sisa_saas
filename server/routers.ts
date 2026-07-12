@@ -19,10 +19,27 @@ import { encrypt, decrypt } from "./_core/encryption";
 import { logPatientAccess, getClientIp } from "./_core/patientAccessLog";
 import { superAdminRouter } from "./routers/superAdmin";
 
+// Receptionist procedure (admin or receptionist)
+const receptionistProcedure = protectedProcedure.use(({ ctx, next }) => {
+  if (ctx.auth.role !== 'admin' && ctx.auth.role !== 'receptionist') {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'Receptionist access required' });
+  }
+  return next({ ctx });
+});
+
 // Admin-only procedure
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   if (ctx.auth.role !== 'admin') {
     throw new TRPCError({ code: 'FORBIDDEN', message: 'Admin access required' });
+  }
+  return next({ ctx });
+});
+
+// Staff procedure (admin, receptionist, financial, super_admin)
+const staffProcedure = protectedProcedure.use(({ ctx, next }) => {
+  const allowed = ['admin', 'super_admin', 'receptionist', 'financial'];
+  if (!allowed.includes(ctx.auth.role)) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'Acesso restrito a staff interno.' });
   }
   return next({ ctx });
 });
@@ -40,7 +57,13 @@ export const appRouter = router({
   superAdmin: superAdminRouter,
   
   auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
+    me: publicProcedure.query(opts => {
+      const user = opts.ctx.user;
+      if (!user) return null;
+      // SECURITY: nunca expor hash de senha ao frontend
+      const { password, passwordHash, cpf, cnpj, ...safeUser } = user as any;
+      return safeUser;
+    }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie('auth_token', { ...cookieOptions, maxAge: -1 });
@@ -99,21 +122,31 @@ export const appRouter = router({
         const { verifyPassword, generateToken } = await import('./auth');
         const { getSessionCookieOptions } = await import('./_core/cookies');
         
-        // Buscar usu\u00e1rio
+        // Busc        // Buscar usuário
         const user = await db.getUserByEmail(input.email);
-        if (!user || !user.password) {
+        if (!user) {
           throw new TRPCError({ 
             code: 'UNAUTHORIZED', 
-            message: 'Email ou senha inv\u00e1lidos' 
+            message: 'Email ou senha inválidos' 
           });
         }
         
-        // Verificar senha
-        const isValid = await verifyPassword(input.password, user.password);
+        // Usuários internos (receptionist, financial) usam passwordHash
+        // Profissionais/admins criados via cadastro usam password
+        const hashToVerify = user.passwordHash ?? user.password;
+        if (!hashToVerify) {
+          throw new TRPCError({ 
+            code: 'UNAUTHORIZED', 
+            message: 'Email ou senha inválidos' 
+          });
+        }
+        
+        // Verificar senha (bcrypt funciona para ambos os campos)
+        const isValid = await verifyPassword(input.password, hashToVerify);
         if (!isValid) {
           throw new TRPCError({ 
             code: 'UNAUTHORIZED', 
-            message: 'Email ou senha inv\u00e1lidos' 
+            message: 'Email ou senha inválidos' 
           });
         }
         
@@ -169,10 +202,11 @@ export const appRouter = router({
   }),
 
   rooms: router({
-    list: publicProcedure
+    list: protectedProcedure
       .input(z.object({ includeInactive: z.boolean().optional() }).optional())
-      .query(async ({ input }) => {
-        const rooms = await db.getAllRooms(input?.includeInactive);
+      .query(async ({ ctx, input }) => {
+        // SECURITY: filtrar salas pelo tenant do usuário logado
+        const rooms = await db.getAllRooms(input?.includeInactive, ctx.auth.tenantId);
         return rooms.map(room => ({
           ...room,
           equipment: room.equipment ? JSON.parse(room.equipment) : [],
@@ -415,13 +449,16 @@ export const appRouter = router({
         };
       }),
     
-    getByRoom: publicProcedure
+    getByRoom: protectedProcedure
       .input(z.object({
         roomId: z.number(),
         startDate: z.date(),
         endDate: z.date(),
       }))
-      .query(async ({ input }) => {
+      .query(async ({ ctx, input }) => {
+        // SECURITY: verifica que a sala pertence ao tenant do usuário antes de retornar reservas
+        const room = await db.getRoomById(input.roomId, ctx.auth.tenantId);
+        if (!room) throw new TRPCError({ code: 'NOT_FOUND', message: 'Sala não encontrada' });
         return db.getBookingsByRoom(input.roomId, input.startDate, input.endDate);
       }),
     
@@ -911,8 +948,9 @@ export const appRouter = router({
     
     markAsRead: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
-        await db.markNotificationAsRead(input.id);
+      .mutation(async ({ ctx, input }) => {
+        // SECURITY: só marca como lida se a notificação pertencer ao usuário logado
+        await db.markNotificationAsRead(input.id, ctx.auth.id);
         return { success: true };
       }),
     
@@ -930,10 +968,10 @@ export const appRouter = router({
           throw new TRPCError({ code: 'FORBIDDEN', message: 'Receptionist access required' });
         }
         
-        const bookings = await db.getReceptionAgenda(input.date);
+        const bookingsList = await db.getReceptionAgenda(input.date);
         
         const enrichedBookings = await Promise.all(
-          bookings.map(async (booking) => {
+          bookingsList.map(async (booking) => {
             const room = await db.getRoomById(booking.roomId, ctx.auth.tenantId);
             const professional = await db.getUserById(booking.professionalId);
             
@@ -952,15 +990,98 @@ export const appRouter = router({
         
         return enrichedBookings;
       }),
+
+    todayBookings: receptionistProcedure
+      .input(z.object({
+        search: z.string().optional(),
+        date: z.string().optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        const tenantId = ctx.auth.tenantId!;
+        const dateStr = input.date ?? new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+        const startOfDay = new Date(`${dateStr}T00:00:00-03:00`).getTime();
+        const endOfDay   = new Date(`${dateStr}T23:59:59-03:00`).getTime();
+        const rawBookings = await db.getReceptionBookings(tenantId, startOfDay, endOfDay);
+        const enriched = await Promise.all(rawBookings.map(async (b) => {
+          const room = await db.getRoomById(b.roomId);
+          const prof = await db.getUserById(b.professionalId);
+          return {
+            id: b.id,
+            startTime: b.startTime instanceof Date ? b.startTime.getTime() : Number(b.startTime),
+            endTime: b.endTime instanceof Date ? b.endTime.getTime() : Number(b.endTime),
+            status: b.status as string,
+            receptionNotes: b.receptionNotes as string | null,
+            roomName: room?.name ?? '—',
+            professionalName: prof?.name ?? '—',
+            professionalSpecialty: prof?.specialty ?? null,
+            patientName: decrypt(b.patientName) ?? b.patientName as string | null,
+          };
+        }));
+        if (input.search) {
+          const q = input.search.toLowerCase();
+          return enriched.filter(b =>
+            (b.professionalName ?? '').toLowerCase().includes(q) ||
+            (b.roomName ?? '').toLowerCase().includes(q) ||
+            (b.patientName ?? '').toLowerCase().includes(q)
+          );
+        }
+        return enriched;
+      }),
   }),
 
   admin: router({
-    listUsers: adminProcedure.query(async () => {
-      return await db.getAllProfessionals();
+    listUsers: adminProcedure.query(async ({ ctx }) => {
+      return await db.getAllProfessionals(ctx.auth.tenantId);
     }),
-    stats: adminProcedure.query(async () => {
-      const rooms = await db.getAllRooms();
-      const professionals = await db.getAllProfessionals();
+
+    createProfessional: adminProcedure
+      .input(z.object({
+        name: z.string().min(2, 'Nome obrigatório'),
+        email: z.string().email('E-mail inválido'),
+        password: z.string().min(6, 'Senha mínima: 6 caracteres'),
+        phone: z.string().optional(),
+        specialty: z.string().optional(),
+        registryType: z.string().optional(),
+        professionalRegistry: z.string().optional(),
+        bio: z.string().optional(),
+        cpf: z.string().optional(),
+        cnpj: z.string().optional(),
+        dateOfBirth: z.string().optional(),
+        gender: z.string().optional(),
+        address: z.string().optional(),
+        appointmentDurationMinutes: z.number().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { hashPassword } = await import('./auth');
+        const existing = await db.getUserByEmail(input.email);
+        if (existing) throw new TRPCError({ code: 'CONFLICT', message: 'Este e-mail já está cadastrado.' });
+        const hashedPassword = await hashPassword(input.password);
+        const { password, ...rest } = input;
+        const newUser = await db.createProfessional({
+          ...rest,
+          password: hashedPassword,
+          role: 'professional',
+          loginMethod: 'password',
+        });
+        // Link professional to this tenant
+        const dbConn = await db.getDb();
+        if (dbConn && newUser?.id) {
+          const { professionalTenants } = await import('../drizzle/schema');
+          await dbConn.insert(professionalTenants).values({
+            professionalId: newUser.id,
+            tenantId: ctx.auth.tenantId,
+            status: 'approved',
+            approvedBy: ctx.auth.id,
+            approvedAt: new Date(),
+          });
+        }
+        return { success: true };
+      }),
+    stats: adminProcedure.query(async ({ ctx }) => {
+      // SECURITY: escopar estatísticas ao tenant do admin logado
+      const tenantId = ctx.auth.tenantId;
+      const rooms = await db.getAllRooms(true, tenantId);
+      const professionals = await db.getAllProfessionals(tenantId);
       return {
         totalRooms: rooms.length,
         activeRooms: rooms.filter(r => r.isActive).length,
@@ -968,34 +1089,85 @@ export const appRouter = router({
       };
     }),
 
-    listAllBookings: adminProcedure
+    listAllBookings: staffProcedure
       .input(z.object({ startDate: z.date().optional(), endDate: z.date().optional(), roomId: z.number().optional() }).optional())
       .query(async ({ ctx, input }) => {
         const tenantId = ctx.auth.tenantId;
-        const list = await db.getBookingsByTenant(tenantId, input?.startDate, input?.endDate);
-        const filtered = input?.roomId ? list.filter((b: any) => b.roomId === input.roomId) : list;
-        return Promise.all(filtered.map(async (b: any) => {
-          const [prof, room] = await Promise.all([db.getUserById(b.professionalId), db.getRoomById(b.roomId, ctx.auth.tenantId)]);
-          return {
-            ...b,
-            // Descriptografa dados sensíveis para o admin (LGPD)
-            patientName: decrypt(b.patientName) ?? b.patientName,
-            patientPhone: decrypt(b.patientPhone),
-            privateNotes: decrypt(b.privateNotes),
-            professionalName: (prof as any)?.name || `Profissional #${b.professionalId}`,
-            roomName: (room as any)?.name || `Sala #${b.roomId}`,
-          };
+        const dbConn = await db.getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB unavailable' });
+
+        const { bookings: bookingsTable, users, rooms: roomsTable } = await import('../drizzle/schema');
+        const { eq, and, gte, lte, sql } = await import('drizzle-orm');
+
+        // Construir condições de filtro
+        const conditions: any[] = [eq(bookingsTable.tenantId, tenantId)];
+        if (input?.startDate) conditions.push(sql`${bookingsTable.startTime} >= ${input.startDate}`);
+        if (input?.endDate) conditions.push(sql`${bookingsTable.startTime} <= ${input.endDate}`);
+        if (input?.roomId) conditions.push(eq(bookingsTable.roomId, input.roomId));
+
+        // JOIN único — sem N+1
+        const rows = await dbConn
+          .select({
+            id: bookingsTable.id,
+            tenantId: bookingsTable.tenantId,
+            professionalId: bookingsTable.professionalId,
+            roomId: bookingsTable.roomId,
+            startTime: bookingsTable.startTime,
+            endTime: bookingsTable.endTime,
+            status: bookingsTable.status,
+            patientName: bookingsTable.patientName,
+            patientPhone: bookingsTable.patientPhone,
+            privateNotes: bookingsTable.privateNotes,
+            totalPrice: bookingsTable.totalPrice,
+            createdAt: bookingsTable.createdAt,
+            professionalName: users.name,
+            roomName: roomsTable.name,
+          })
+          .from(bookingsTable)
+          .leftJoin(users, eq(bookingsTable.professionalId, users.id))
+          .leftJoin(roomsTable, eq(bookingsTable.roomId, roomsTable.id))
+          .where(and(...conditions));
+
+        return rows.map((b: any) => ({
+          ...b,
+          patientName: decrypt(b.patientName) ?? b.patientName,
+          patientPhone: decrypt(b.patientPhone),
+          privateNotes: decrypt(b.privateNotes),
+          professionalName: b.professionalName || `Profissional #${b.professionalId}`,
+          roomName: b.roomName || `Sala #${b.roomId}`,
         }));
       }),
 
     updateProfessional: adminProcedure
-      .input(z.object({ id: z.number(), name: z.string().optional(), email: z.string().email().optional(), phone: z.string().optional(), specialty: z.string().optional(), professionalRegistry: z.string().optional(), registryType: z.string().optional(), bio: z.string().optional() }))
-      .mutation(async ({ input }) => {
+      .input(z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        email: z.string().email().optional(),
+        phone: z.string().optional(),
+        specialty: z.string().optional(),
+        professionalRegistry: z.string().optional(),
+        registryType: z.string().optional(),
+        bio: z.string().optional(),
+        cpf: z.string().optional(),
+        cnpj: z.string().optional(),
+        dateOfBirth: z.string().optional(),
+        gender: z.string().optional(),
+        address: z.string().optional(),
+        publicProfileSlug: z.string().optional(),
+        appointmentDurationMinutes: z.number().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
         const { id, ...data } = input;
         const dbConn = await db.getDb();
         if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB unavailable' });
-        const { users } = await import('../drizzle/schema');
-        const { eq } = await import('drizzle-orm');
+        // Verify professional belongs to this tenant (multi-tenant isolation)
+        const { users, professionalTenants } = await import('../drizzle/schema');
+        const { eq, and } = await import('drizzle-orm');
+        const link = await dbConn.select({ id: professionalTenants.id })
+          .from(professionalTenants)
+          .where(and(eq(professionalTenants.professionalId, id), eq(professionalTenants.tenantId, ctx.auth.tenantId)))
+          .limit(1);
+        if (link.length === 0) throw new TRPCError({ code: 'FORBIDDEN', message: 'Profissional não pertence a este tenant.' });
         await dbConn.update(users).set(data as any).where(eq(users.id, id));
         return { success: true };
       }),
@@ -1018,7 +1190,8 @@ export const appRouter = router({
       .input(z.object({ roomId: z.number().optional(), startDate: z.date().optional(), endDate: z.date().optional() }).optional())
       .query(async ({ ctx, input }) => {
         const tenantId = ctx.auth.tenantId;
-        const allRooms = await db.getAllRooms(false);
+        // SECURITY: filtrar salas pelo tenant do admin
+        const allRooms = await db.getAllRooms(false, tenantId);
         const allBookings = await db.getBookingsByTenant(tenantId, input?.startDate, input?.endDate);
         const rooms = input?.roomId ? allRooms.filter((r: any) => r.id === input.roomId) : allRooms;
         return Promise.all(rooms.map(async (room: any) => {
@@ -1033,8 +1206,9 @@ export const appRouter = router({
   }),
 
   cancellationRules: router({
-    list: publicProcedure.query(async () => {
-      return await getCancellationRules();
+    // SECURITY: list filtrado pelo tenant do usuário logado (protectedProcedure)
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return await getCancellationRules(ctx.auth.tenantId);
     }),
     create: adminProcedure
       .input(
@@ -1045,8 +1219,9 @@ export const appRouter = router({
           isActive: z.boolean().optional(),
         })
       )
-      .mutation(async ({ input }) => {
-        await createCancellationRule(input);
+      .mutation(async ({ ctx, input }) => {
+        // SECURITY: vincular regra ao tenant do admin
+        await createCancellationRule({ ...input, tenantId: ctx.auth.tenantId });
         return { success: true };
       }),
     update: adminProcedure
@@ -1059,14 +1234,16 @@ export const appRouter = router({
           isActive: z.boolean().optional(),
         })
       )
-      .mutation(async ({ input }) => {
-        await updateCancellationRule(input.id, input);
+      .mutation(async ({ ctx, input }) => {
+        // SECURITY: só atualiza regras do próprio tenant
+        await updateCancellationRule(input.id, input, ctx.auth.tenantId);
         return { success: true };
       }),
     delete: adminProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
-        await deleteCancellationRule(input.id);
+      .mutation(async ({ ctx, input }) => {
+        // SECURITY: só deleta regras do próprio tenant
+        await deleteCancellationRule(input.id, ctx.auth.tenantId);
         return { success: true };
       }),
   }),
@@ -1348,15 +1525,17 @@ export const appRouter = router({
     
     notify: professionalProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
-        await db.updateWaitlistEntry(input.id, { status: 'notified' });
+      .mutation(async ({ ctx, input }) => {
+        // SECURITY: só atualiza entradas da lista de espera do próprio profissional
+        await db.updateWaitlistEntry(input.id, { status: 'notified' }, ctx.auth.id);
         return { success: true };
       }),
     
     convert: professionalProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
-        await db.updateWaitlistEntry(input.id, { status: 'converted' });
+      .mutation(async ({ ctx, input }) => {
+        // SECURITY: só converte entradas da lista de espera do próprio profissional
+        await db.updateWaitlistEntry(input.id, { status: 'converted' }, ctx.auth.id);
         return { success: true };
       }),
   }),
@@ -1647,6 +1826,113 @@ export const appRouter = router({
         return { success: true };
       }),
   }),
+
+  // ── Staff / Internal Users (receptionist, financial) ──────────────────────
+  staff: router({
+    list: adminProcedure.query(async ({ ctx }) => {
+      const tenantId = ctx.auth.tenantId!;
+      const rows = await db.getStaffByTenant(tenantId);
+      return rows.map((r) => ({
+        id: r.id,
+        name: r.name ?? '',
+        email: r.email,
+        role: r.role as string,
+        createdAt: r.createdAt,
+        permissions: {
+          canViewBookings: Boolean(r.permCanViewBookings),
+          canViewProfessionals: Boolean(r.permCanViewProfessionals),
+          canViewRooms: Boolean(r.permCanViewRooms),
+          canCheckIn: Boolean(r.permCanCheckIn),
+          canManagePatients: Boolean(r.permCanManagePatients),
+        },
+      }));
+    }),
+
+    create: adminProcedure
+      .input(z.object({
+        name: z.string().min(2),
+        email: z.string().email(),
+        password: z.string().min(6),
+        role: z.enum(['receptionist', 'financial']),
+        permissions: z.object({
+          canViewBookings: z.boolean().default(true),
+          canViewProfessionals: z.boolean().default(true),
+          canViewRooms: z.boolean().default(true),
+          canCheckIn: z.boolean().default(true),
+          canManagePatients: z.boolean().default(false),
+        }),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const tenantId = ctx.auth.tenantId!;
+        const bcrypt = await import('bcryptjs');
+        const hash = await bcrypt.hash(input.password, 10);
+        const existing = await db.getUserByEmail(input.email);
+        if (existing) throw new TRPCError({ code: 'CONFLICT', message: 'E-mail já cadastrado' });
+        await db.createStaffUser({
+          name: input.name,
+          email: input.email,
+          passwordHash: hash,
+          role: input.role,
+          tenantId,
+          permCanViewBookings: input.permissions.canViewBookings,
+          permCanViewProfessionals: input.permissions.canViewProfessionals,
+          permCanViewRooms: input.permissions.canViewRooms,
+          permCanCheckIn: input.permissions.canCheckIn,
+          permCanManagePatients: input.permissions.canManagePatients,
+        });
+        return { success: true };
+      }),
+
+    update: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().min(2).optional(),
+        role: z.enum(['receptionist', 'financial']).optional(),
+        isActive: z.boolean().optional(),
+        permissions: z.object({
+          canViewBookings: z.boolean(),
+          canViewProfessionals: z.boolean(),
+          canViewRooms: z.boolean(),
+          canCheckIn: z.boolean(),
+          canManagePatients: z.boolean(),
+        }).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const tenantId = ctx.auth.tenantId!;
+        const updateData: Parameters<typeof db.updateStaffUser>[2] = {};
+        if (input.name !== undefined) updateData.name = input.name;
+        if (input.role !== undefined) updateData.role = input.role;
+        if (input.isActive !== undefined) updateData.isActive = input.isActive;
+        if (input.permissions) {
+          updateData.permCanViewBookings = input.permissions.canViewBookings;
+          updateData.permCanViewProfessionals = input.permissions.canViewProfessionals;
+          updateData.permCanViewRooms = input.permissions.canViewRooms;
+          updateData.permCanCheckIn = input.permissions.canCheckIn;
+          updateData.permCanManagePatients = input.permissions.canManagePatients;
+        }
+        await db.updateStaffUser(input.id, tenantId, updateData);
+        return { success: true };
+      }),
+
+    resetPassword: adminProcedure
+      .input(z.object({ id: z.number(), newPassword: z.string().min(6) }))
+      .mutation(async ({ ctx, input }) => {
+        const tenantId = ctx.auth.tenantId!;
+        const bcrypt = await import('bcryptjs');
+        const hash = await bcrypt.hash(input.newPassword, 10);
+        await db.updateStaffUser(input.id, tenantId, { passwordHash: hash });
+        return { success: true };
+      }),
+
+    remove: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const tenantId = ctx.auth.tenantId!;
+        await db.deleteStaffUser(input.id, tenantId);
+        return { success: true };
+      }),
+  }),
+
 });
 
 export type AppRouter = typeof appRouter;
