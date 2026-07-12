@@ -118,7 +118,7 @@ async function startServer() {
             tenantId: tenId,
             amount: creditsNum,
             type: 'purchase',
-            description: `Compra de pacote via Stripe: ${packageId || 'N/A'}`,
+            description: packageId === 'custom' ? 'Compra de créditos avulsos via Stripe' : `Compra de pacote via Stripe: ${packageId || 'N/A'}`,
             balanceAfter: currentBalance + creditsNum,
           });
 

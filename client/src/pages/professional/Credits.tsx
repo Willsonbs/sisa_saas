@@ -2,12 +2,28 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
-import { CreditCard, TrendingUp, Check, Sparkles, QrCode } from "lucide-react";
+import { CreditCard, TrendingUp, Check, Sparkles, QrCode, Wallet } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSearch } from "wouter";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
+
+// Valor mínimo para compra de créditos avulsos (R$ 50,00)
+const MIN_CUSTOM_AMOUNT_REAIS = 50;
+
+// Aceita vírgula ou ponto como separador decimal (ex: "55,45" ou "55.45")
+function parseCustomAmount(raw: string): number | null {
+  const normalized = raw.trim().replace(/\./g, "").replace(",", ".");
+  // Se o usuário digitou só com ponto como decimal (ex: "55.45"), o replace de
+  // milhar acima não deve remover esse ponto decimal. Tenta a forma mais simples primeiro.
+  const direct = Number(raw.trim().replace(",", "."));
+  const value = !isNaN(direct) ? direct : Number(normalized);
+  if (isNaN(value) || value <= 0) return null;
+  return Math.round(value * 100); // retorna em centavos
+}
 
 export default function CreditsPage() {
   const search = useSearch();
@@ -19,6 +35,7 @@ export default function CreditsPage() {
   const { data: packages } = trpc.credits.packages.useQuery();
 
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'pix'>('card');
+  const [customAmount, setCustomAmount] = useState("");
 
   const checkoutMutation = trpc.payments.createCheckout.useMutation({
     onSuccess: (data: any) => {
@@ -28,6 +45,15 @@ export default function CreditsPage() {
     },
     onError: (err: any) => toast.error(err.message || "Erro ao criar checkout"),
   });
+
+  function handleBuyCustomAmount() {
+    const cents = parseCustomAmount(customAmount);
+    if (cents === null || cents < MIN_CUSTOM_AMOUNT_REAIS * 100) {
+      toast.error(`Informe um valor válido, mínimo de ${formatCurrency(MIN_CUSTOM_AMOUNT_REAIS * 100)}.`);
+      return;
+    }
+    checkoutMutation.mutate({ customAmountCents: cents, paymentMethod });
+  }
 
   useEffect(() => {
     if (paymentStatus === "success") {
@@ -107,6 +133,44 @@ export default function CreditsPage() {
         <div>
           <h2 className="text-2xl font-bold mb-6">Pacotes de Créditos</h2>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            {/* Card de valor avulso — mesma estética dos demais cards */}
+            <Card className="relative hover:border-primary/50 transition-all">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Wallet className="h-5 w-5" />
+                  Avulso
+                </CardTitle>
+                <CardDescription>
+                  Escolha o valor (mínimo {formatCurrency(MIN_CUSTOM_AMOUNT_REAIS * 100)})
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="customAmount" className="text-sm text-muted-foreground">
+                    Valor em R$
+                  </Label>
+                  <Input
+                    id="customAmount"
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="Ex: 51 ou 55,45"
+                    value={customAmount}
+                    onChange={(e) => setCustomAmount(e.target.value)}
+                  />
+                </div>
+
+                <Button
+                  className="w-full"
+                  variant="outline"
+                  disabled={checkoutMutation.isPending || !customAmount}
+                  onClick={handleBuyCustomAmount}
+                >
+                  {checkoutMutation.isPending ? "Redirecionando..." : "Comprar Agora"}
+                </Button>
+              </CardContent>
+            </Card>
+
             {packages?.map((pkg) => (
               <Card
                 key={pkg.id}
