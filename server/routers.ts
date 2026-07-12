@@ -35,6 +35,19 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   return next({ ctx });
 });
 
+// Gerenciamento de profissionais: admin sempre tem acesso; recepcionista/financeiro
+// só quando a permissão "Ver Profissionais" estiver habilitada para o usuário
+// (dono da empresa pode delegar o cadastro de novos profissionais à recepção).
+const professionalsManageProcedure = protectedProcedure.use(({ ctx, next }) => {
+  const isAdmin = ctx.auth.role === 'admin';
+  const isPermittedStaff = (ctx.auth.role === 'receptionist' || ctx.auth.role === 'financial')
+    && !!ctx.user?.permCanViewProfessionals;
+  if (!isAdmin && !isPermittedStaff) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'Sem permissão para gerenciar profissionais.' });
+  }
+  return next({ ctx });
+});
+
 // Staff procedure (admin, receptionist, financial, super_admin)
 const staffProcedure = protectedProcedure.use(({ ctx, next }) => {
   const allowed = ['admin', 'super_admin', 'receptionist', 'financial'];
@@ -1093,43 +1106,14 @@ export const appRouter = router({
     professionals: receptionistProcedure.query(async ({ ctx }) => {
       return db.getProfessionalNamesByTenant(ctx.auth.tenantId!);
     }),
-
-    // Tela "Profissionais" da recepção/financeiro: lista com dados de contato
-    // e permite atualizar telefone. Gated pela permissão permCanViewProfessionals
-    // (admin/super_admin sempre têm acesso, independente do toggle).
-    professionalsContacts: staffProcedure.query(async ({ ctx }) => {
-      const isAdmin = ctx.auth.role === 'admin' || ctx.auth.role === 'super_admin';
-      if (!isAdmin && !ctx.user?.permCanViewProfessionals) {
-        throw new TRPCError({ code: 'FORBIDDEN', message: 'Sem permissão para ver profissionais.' });
-      }
-      return db.getProfessionalContactsByTenant(ctx.auth.tenantId!);
-    }),
-
-    updateProfessionalContact: staffProcedure
-      .input(z.object({
-        professionalId: z.number(),
-        phone: z.string().min(8, 'Telefone inválido'),
-      }))
-      .mutation(async ({ ctx, input }) => {
-        const isAdmin = ctx.auth.role === 'admin' || ctx.auth.role === 'super_admin';
-        if (!isAdmin && !ctx.user?.permCanViewProfessionals) {
-          throw new TRPCError({ code: 'FORBIDDEN', message: 'Sem permissão para editar profissionais.' });
-        }
-        try {
-          await db.updateProfessionalPhone(input.professionalId, ctx.auth.tenantId!, input.phone);
-        } catch (err: any) {
-          throw new TRPCError({ code: 'FORBIDDEN', message: err.message || 'Não foi possível atualizar.' });
-        }
-        return { success: true };
-      }),
   }),
 
   admin: router({
-    listUsers: adminProcedure.query(async ({ ctx }) => {
+    listUsers: professionalsManageProcedure.query(async ({ ctx }) => {
       return await db.getAllProfessionals(ctx.auth.tenantId);
     }),
 
-    createProfessional: adminProcedure
+    createProfessional: professionalsManageProcedure
       .input(z.object({
         name: z.string().min(2, 'Nome obrigatório'),
         email: z.string().email('E-mail inválido'),
@@ -1239,7 +1223,7 @@ export const appRouter = router({
         }));
       }),
 
-    updateProfessional: adminProcedure
+    updateProfessional: professionalsManageProcedure
       .input(z.object({
         id: z.number(),
         name: z.string().optional(),
@@ -1273,7 +1257,7 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    deleteProfessional: adminProcedure
+    deleteProfessional: professionalsManageProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
         const dbConn = await db.getDb();

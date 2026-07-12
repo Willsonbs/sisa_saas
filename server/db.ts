@@ -117,55 +117,6 @@ export async function getProfessionalNamesByTenant(tenantId: number) {
     .orderBy(users.name);
 }
 
-/**
- * Lista de profissionais com dados de contato (nome, email, telefone,
- * especialidade) para a tela "Profissionais" da recepção/financeiro. Não
- * inclui CPF/CNPJ/endereço/registro (só o necessário para orientar pacientes
- * e atualizar telefone de contato) — LGPD/minimização de dados.
- */
-export async function getProfessionalContactsByTenant(tenantId: number) {
-  const db = await getDb();
-  if (!db) return [];
-
-  return db.select({
-    id: users.id,
-    name: users.name,
-    email: users.email,
-    phone: users.phone,
-    specialty: users.specialty,
-  })
-    .from(users)
-    .innerJoin(professionalTenants, and(
-      eq(professionalTenants.professionalId, users.id),
-      eq(professionalTenants.tenantId, tenantId),
-      eq(professionalTenants.status, 'approved')
-    ))
-    .where(eq(users.role, 'professional'))
-    .orderBy(users.name);
-}
-
-/**
- * Atualiza apenas o telefone de contato de um profissional. Uso restrito à
- * tela de Profissionais da recepção/financeiro (permCanViewProfessionals) —
- * por isso só aceita o campo telefone, nada de CPF/CNPJ/registro/credenciais.
- */
-export async function updateProfessionalPhone(professionalId: number, tenantId: number, phone: string) {
-  const db = await getDb();
-  if (!db) throw new Error('DB unavailable');
-
-  // Isolamento de tenant: só atualiza se o profissional pertencer a este tenant.
-  const link = await db.select({ id: professionalTenants.id })
-    .from(professionalTenants)
-    .where(and(
-      eq(professionalTenants.professionalId, professionalId),
-      eq(professionalTenants.tenantId, tenantId)
-    ))
-    .limit(1);
-  if (link.length === 0) throw new Error('Profissional não pertence a este tenant.');
-
-  await db.update(users).set({ phone }).where(eq(users.id, professionalId));
-}
-
 export async function getProfessionalsByTenant(tenantId: number, status?: string) {
   const db = await getDb();
   if (!db) return [];
