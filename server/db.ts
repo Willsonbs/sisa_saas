@@ -271,6 +271,53 @@ export async function updateUserProfile(userId: number, data: Partial<InsertUser
   await db.update(users).set(data).where(eq(users.id, userId));
 }
 
+// Estatísticas do Dashboard administrativo: quantidade de reservas de hoje
+// e faturamento do mês corrente. Só conta reservas efetivamente confirmadas
+// (confirmed/completed) e no-show (paciente faltou mas o valor já foi
+// cobrado, sem reembolso) — exclui draft/pending_payment (fluxo não
+// finalizado) e canceled_with_credit (valor devolvido ao profissional).
+export async function getDashboardBookingStats(tenantId: number) {
+  const db = await getDb();
+  if (!db) return { bookingsToday: 0, revenueThisMonth: 0 };
+
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+  const revenueStatusFilter = or(
+    eq(bookings.status, 'confirmed'),
+    eq(bookings.status, 'completed'),
+    eq(bookings.status, 'no_show'),
+  );
+
+  const todayRows = await db.select({ id: bookings.id })
+    .from(bookings)
+    .where(and(
+      eq(bookings.tenantId, tenantId),
+      gte(bookings.startTime, startOfDay),
+      lte(bookings.startTime, endOfDay),
+      revenueStatusFilter,
+    ));
+
+  const monthRows = await db.select({ totalPrice: bookings.totalPrice })
+    .from(bookings)
+    .where(and(
+      eq(bookings.tenantId, tenantId),
+      gte(bookings.startTime, startOfMonth),
+      lte(bookings.startTime, endOfMonth),
+      revenueStatusFilter,
+    ));
+
+  const revenueThisMonth = monthRows.reduce((sum, r) => sum + (r.totalPrice || 0), 0);
+
+  return {
+    bookingsToday: todayRows.length,
+    revenueThisMonth,
+  };
+}
+
 export async function getAllProfessionals(tenantId?: number) {
   const db = await getDb();
   if (!db) return [];

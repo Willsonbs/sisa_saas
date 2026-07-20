@@ -1218,10 +1218,13 @@ export const appRouter = router({
       const tenantId = ctx.auth.tenantId;
       const rooms = await db.getAllRooms(true, tenantId);
       const professionals = await db.getAllProfessionals(tenantId);
+      const bookingStats = await db.getDashboardBookingStats(tenantId);
       return {
         totalRooms: rooms.length,
         activeRooms: rooms.filter(r => r.isActive).length,
         totalProfessionals: professionals.length,
+        bookingsToday: bookingStats.bookingsToday,
+        revenueThisMonth: bookingStats.revenueThisMonth,
       };
     }),
 
