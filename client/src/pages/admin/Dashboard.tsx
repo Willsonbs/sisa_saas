@@ -2,6 +2,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
+import { formatCurrency } from "@/lib/utils";
 import { Building2, Users, Calendar, Settings, DollarSign, TrendingUp } from "lucide-react";
 import { Link } from "wouter";
 
@@ -60,9 +61,13 @@ export default function AdminDashboard() {
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">-</div>
+              {isLoading ? (
+                <div className="h-8 w-12 bg-muted animate-pulse rounded" />
+              ) : (
+                <div className="text-2xl font-bold">{stats?.bookingsToday ?? 0}</div>
+              )}
               <p className="text-xs text-muted-foreground mt-1">
-                Em desenvolvimento
+                Confirmadas para hoje
               </p>
             </CardContent>
           </Card>
@@ -73,9 +78,13 @@ export default function AdminDashboard() {
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">-</div>
+              {isLoading ? (
+                <div className="h-8 w-20 bg-muted animate-pulse rounded" />
+              ) : (
+                <div className="text-2xl font-bold">{formatCurrency(stats?.revenueThisMonth ?? 0)}</div>
+              )}
               <p className="text-xs text-muted-foreground mt-1">
-                Em desenvolvimento
+                Neste mês
               </p>
             </CardContent>
           </Card>
