@@ -61,6 +61,38 @@ const roomsManageProcedure = protectedProcedure.use(({ ctx, next }) => {
   return next({ ctx });
 });
 
+// Dias da semana na mesma ordem de Date.getDay() (0=domingo .. 6=sábado),
+// mapeados para as colunas booleanas de disponibilidade da sala.
+const WEEKDAY_AVAILABILITY_FIELDS = [
+  'availableSunday', 'availableMonday', 'availableTuesday', 'availableWednesday',
+  'availableThursday', 'availableFriday', 'availableSaturday',
+] as const;
+
+// Valida se a sala está configurada como disponível no dia da semana e dentro
+// do horário de funcionamento (openTime/closeTime) do horário solicitado.
+// Enforçado no backend (não só na UI) para que ninguém consiga criar reserva
+// fora do funcionamento configurado da sala, mesmo chamando a API diretamente.
+function assertRoomOpenForSlot(room: any, startTime: Date, endTime: Date) {
+  const dow = startTime.getDay();
+  const field = WEEKDAY_AVAILABILITY_FIELDS[dow];
+  if (room[field] === false) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'Esta sala não está disponível neste dia da semana.' });
+  }
+
+  const parseMinutes = (t?: string | null) => {
+    if (!t) return null;
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + (m || 0);
+  };
+  const openMins = parseMinutes(room.openTime);
+  const closeMins = parseMinutes(room.closeTime);
+  const startMins = startTime.getHours() * 60 + startTime.getMinutes();
+  const endMins = endTime.getHours() * 60 + endTime.getMinutes();
+  if ((openMins != null && startMins < openMins) || (closeMins != null && endMins > closeMins)) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'Este horário está fora do funcionamento da sala.' });
+  }
+}
+
 // Staff procedure (admin, receptionist, financial, super_admin)
 const staffProcedure = protectedProcedure.use(({ ctx, next }) => {
   const allowed = ['admin', 'super_admin', 'receptionist', 'financial'];
@@ -435,6 +467,16 @@ export const appRouter = router({
             photos: r.photos ? JSON.parse(r.photos) : [],
             openTime: r.openTime ?? '07:00',
             closeTime: r.closeTime ?? '21:00',
+            // Disponibilidade por dia da semana (config em Gerenciar Salas) —
+            // antes não era enviada ao frontend, então a UI mostrava a sala
+            // como disponível mesmo em dias desmarcados (ex: sábado/domingo).
+            availableMonday: r.availableMonday,
+            availableTuesday: r.availableTuesday,
+            availableWednesday: r.availableWednesday,
+            availableThursday: r.availableThursday,
+            availableFriday: r.availableFriday,
+            availableSaturday: r.availableSaturday,
+            availableSunday: r.availableSunday,
           })),
           occupiedSlots,
           blockedSlots,
@@ -537,7 +579,8 @@ export const appRouter = router({
         if (!room || !room.isActive) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Room not available' });
         }
-        
+        assertRoomOpenForSlot(room, input.startTime, input.endTime);
+
         const hasConflict = await db.checkBookingConflict(
           input.roomId,
           input.startTime,
@@ -647,6 +690,7 @@ export const appRouter = router({
         if (!room || !room.isActive) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Room not available' });
         }
+        assertRoomOpenForSlot(room, input.startTime, input.endTime);
 
         const hasConflict = await db.checkBookingConflict(input.roomId, input.startTime, input.endTime);
         if (hasConflict) {
