@@ -58,7 +58,7 @@ export default function ReceptionPanel() {
   const suggestions = useMemo(() => {
     if (selectedProfessional || !search.trim()) return [];
     const q = normalize(search);
-    return professionals.filter((p) => normalize(p.name).includes(q)).slice(0, 6);
+    return professionals.filter((p) => normalize(p.name ?? "").includes(q)).slice(0, 6);
   }, [professionals, search, selectedProfessional]);
 
   function selectProfessional(p: { id: number; name: string }) {
@@ -177,11 +177,11 @@ export default function ReceptionPanel() {
                 <button
                   key={p.id}
                   type="button"
-                  onClick={() => selectProfessional(p)}
+                  onClick={() => selectProfessional({ id: p.id, name: p.name ?? "Profissional sem nome" })}
                   className="w-full text-left px-4 py-2 text-sm hover:bg-[#EDE8E3] flex items-center gap-2"
                 >
                   <User className="h-3.5 w-3.5 text-gray-400" />
-                  {p.name}
+                  {p.name ?? "Profissional sem nome"}
                 </button>
               ))}
             </div>
