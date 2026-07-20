@@ -54,7 +54,7 @@ function dateLabel(d: Date) {
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
-type SlotType = "free" | "booking" | "maintenance" | "admin_block" | "my_booking" | "past";
+type SlotType = "free" | "booking" | "maintenance" | "admin_block" | "my_booking" | "past" | "closed";
 
 interface OccupiedBlock {
   roomId: number;
@@ -71,6 +71,7 @@ function slotBg(type: SlotType): string {
     case "admin_block": return "#F8FAFC";
     case "my_booking":  return "#EFF6FF";
     case "past":        return "#F3F4F6";
+    case "closed":      return "#F3F4F6";
   }
 }
 function slotBorder(type: SlotType): string {
@@ -81,6 +82,7 @@ function slotBorder(type: SlotType): string {
     case "admin_block": return "#CBD5E1";
     case "my_booking":  return "#BFDBFE";
     case "past":        return "transparent";
+    case "closed":      return "transparent";
   }
 }
 function slotTextColor(type: SlotType): string {
@@ -91,6 +93,7 @@ function slotTextColor(type: SlotType): string {
     case "admin_block": return "#64748B";
     case "my_booking":  return "#1D4ED8";
     case "past":        return "#D1D5DB";
+    case "closed":      return "#9CA3AF";
   }
 }
 function slotLabel(type: SlotType): string {
@@ -101,6 +104,7 @@ function slotLabel(type: SlotType): string {
     case "admin_block": return "Bloqueado";
     case "my_booking":  return "Minha reserva";
     case "past":        return "";
+    case "closed":      return "Fechado";
   }
 }
 
@@ -158,7 +162,36 @@ const LEGEND_ITEMS: { type: SlotType; label: string }[] = [
   { type: "maintenance", label: "Manutenção" },
   { type: "admin_block", label: "Bloqueado" },
   { type: "past",        label: "Horário passado" },
+  { type: "closed",      label: "Sala fechada" },
 ];
+
+// Dias da semana na mesma ordem de Date.getDay() (0=domingo .. 6=sábado).
+const WEEKDAY_AVAILABILITY_FIELDS = [
+  "availableSunday", "availableMonday", "availableTuesday", "availableWednesday",
+  "availableThursday", "availableFriday", "availableSaturday",
+] as const;
+
+function parseTimeToMinutes(t?: string | null): number | null {
+  if (!t) return null;
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + (m || 0);
+}
+
+// Verifica se a sala está configurada como disponível no dia da semana
+// selecionado e se a hora está dentro do horário de funcionamento
+// (openTime/closeTime) cadastrado em Gerenciar Salas.
+function isRoomOpenAt(room: any, date: Date, hour: number): boolean {
+  const field = WEEKDAY_AVAILABILITY_FIELDS[date.getDay()];
+  if (room[field] === false) return false;
+
+  const openMins = parseTimeToMinutes(room.openTime);
+  const closeMins = parseTimeToMinutes(room.closeTime);
+  const slotStartMins = hour * 60;
+  const slotEndMins = (hour + 1) * 60;
+  if (openMins != null && slotStartMins < openMins) return false;
+  if (closeMins != null && slotEndMins > closeMins) return false;
+  return true;
+}
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
@@ -239,6 +272,12 @@ export default function Rooms() {
     slotDate.setHours(hour + 1, 0, 0, 0); // fim do slot
     if (slotDate <= now) return "past";
 
+    // Respeita a disponibilidade por dia da semana e o horário de
+    // funcionamento configurados em Gerenciar Salas (ex: sala fechada aos
+    // domingos, ou que só funciona das 08:00 às 18:00).
+    const room = rooms.find((r: any) => r.id === roomId);
+    if (room && !isRoomOpenAt(room, currentDate, hour)) return "closed";
+
     const slotStartMins = hour * 60;
     const slotEndMins   = (hour + 1) * 60;
     const blocks = getOccupiedBlocks(roomId);
@@ -310,6 +349,7 @@ export default function Rooms() {
         maintenance: "Sala em manutenção neste horário.",
         admin_block: "Horário bloqueado pelo gestor.",
         past:        "Não é possível reservar horários no passado.",
+        closed:      "Esta sala não atende neste dia ou horário.",
       };
       if (msgs[type]) toast.info(msgs[type]);
       return;
@@ -514,12 +554,14 @@ function HourCell({
 }) {
   const [hovered, setHovered] = useState(false);
   const isPast = type === "past";
+  const isClosed = type === "closed";
+  const isDisabled = isPast || isClosed;
 
   const bg = hovered && isFree ? CELL_FREE_HOVER : slotBg(type);
 
   // Mostra o intervalo exato (ex: "08:30-09:30") só para blocos ocupados/bloqueados
-  // que têm o horário conhecido — nunca para "free"/"past".
-  const showRange = !isFree && !isPast && startMins != null && endMins != null;
+  // que têm o horário conhecido — nunca para "free"/"past"/"closed".
+  const showRange = !isFree && !isDisabled && startMins != null && endMins != null;
   const rangeLabel = showRange
     ? `${fmtTime(Math.floor(startMins! / 60), startMins! % 60)}-${fmtTime(Math.floor(endMins! / 60), endMins! % 60)}`
     : null;
@@ -530,15 +572,17 @@ function HourCell({
       className="border-b border-r align-middle px-1 py-0.5 transition-colors"
       style={{
         background: bg,
-        cursor: isPast ? "default" : isFree ? "pointer" : "not-allowed",
-        opacity: isPast ? 0.5 : 1,
+        cursor: isDisabled ? "default" : isFree ? "pointer" : "not-allowed",
+        opacity: isDisabled ? 0.5 : 1,
       }}
-      onClick={isPast ? undefined : onClick}
-      onMouseEnter={() => { if (!isPast) setHovered(true); }}
+      onClick={isDisabled ? undefined : onClick}
+      onMouseEnter={() => { if (!isDisabled) setHovered(true); }}
       onMouseLeave={() => setHovered(false)}
       title={
         isPast
           ? "Horário no passado"
+          : isClosed
+          ? "Sala fechada neste dia/horário"
           : isFree
           ? "Clique para reservar"
           : rangeLabel
@@ -551,7 +595,7 @@ function HourCell({
           className="text-[10px] font-medium leading-tight text-center"
           style={{ color: slotTextColor(type) }}
         >
-          {!isPast && isFree && hovered ? "Reservar" : slotLabel(type)}
+          {!isDisabled && isFree && hovered ? "Reservar" : slotLabel(type)}
         </span>
         {rangeLabel && (
           <span
