@@ -736,17 +736,24 @@ export async function addCredit(credit: InsertCredit) {
 export async function getCreditBalance(professionalId: number, tenantId?: number) {
   const db = await getDb();
   if (!db) return 0;
-  
+
+  // Saldo calculado como SOMA de todos os lançamentos, não como o
+  // "balanceAfter" da última transação. O modelo anterior (ler o
+  // balanceAfter do lançamento mais recente) só fica correto se TODO
+  // lançamento tiver sido inserido lendo o saldo anterior corretamente —
+  // um único lançamento manual com balanceAfter incorreto (ex: um script
+  // de teste que gravou o valor fixo em vez de somar ao saldo já
+  // existente) desalinha o saldo "oficial" pra sempre a partir dali,
+  // mesmo a soma real dos valores estando certa. SUM(amount) é
+  // autoconsistente e imune a esse tipo de erro histórico.
   const conditions: any[] = [eq(credits.professionalId, professionalId)];
   if (tenantId) conditions.push(eq(credits.tenantId, tenantId));
-  
-  const result = await db.select({ balance: credits.balanceAfter })
+
+  const result = await db.select({ balance: sql<number>`COALESCE(SUM(${credits.amount}), 0)` })
     .from(credits)
-    .where(and(...conditions))
-    .orderBy(desc(credits.createdAt))
-    .limit(1);
-  
-  return result.length > 0 ? result[0].balance : 0;
+    .where(and(...conditions));
+
+  return result.length > 0 ? Number(result[0].balance) : 0;
 }
 
 export async function getCreditHistory(professionalId: number, limit = 50, tenantId?: number) {
