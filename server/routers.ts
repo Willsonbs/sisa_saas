@@ -1204,6 +1204,7 @@ export const appRouter = router({
           password: hashedPassword,
           role: 'professional',
           loginMethod: 'password',
+          tenantId: ctx.auth.tenantId, // SECURITY: garante que tenantId está no users para resolveTenantId
         });
         // Link professional to this tenant
         const dbConn = await db.getDb();
