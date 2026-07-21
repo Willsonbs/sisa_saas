@@ -1,0 +1,8 @@
+{
+  "query": "\n-- Verificar o estado atual da reserva de teste\nSELECT id, status, professional_id, total_price FROM bookings WHERE id = 390010;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2K2nZhchkWvioe9.44e5ea8f5c60 --database BKg3JWXSVAysuyURANpvoX --execute \n-- Verificar o estado atual da reserva de teste\nSELECT id, status, professional_id, total_price FROM bookings WHERE id = 390010;\n",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 3: Unknown column 'professional_id' in 'field list'"
+  ]
+}
