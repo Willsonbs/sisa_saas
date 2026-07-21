@@ -423,6 +423,41 @@ export async function getRoomById(id: number, tenantId?: number) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+// Ordenação natural: trata sequências numéricas dentro do texto como
+// números, não como sequência de caracteres. Sem isso, um ORDER BY comum
+// (ou ordenação alfabética ingênua) coloca "Consultório 10" antes de
+// "Consultório 2" (compara dígito a dígito: '1' < '2'). Cada empresa nomeia
+// suas salas do seu jeito (não necessariamente numerado), então ordenar só
+// por nome cru não bastava — precisava entender números embutidos no texto.
+function naturalCompare(a: string, b: string): number {
+  const tokenize = (s: string): (string | number)[] => {
+    const tokens: (string | number)[] = [];
+    const re = /(\d+)|(\D+)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(s)) !== null) {
+      tokens.push(m[1] !== undefined ? parseInt(m[1], 10) : m[2]);
+    }
+    return tokens;
+  };
+
+  const ax = tokenize(a);
+  const bx = tokenize(b);
+  const len = Math.min(ax.length, bx.length);
+
+  for (let i = 0; i < len; i++) {
+    const av = ax[i];
+    const bv = bx[i];
+    if (typeof av === "number" && typeof bv === "number") {
+      if (av !== bv) return av - bv;
+    } else {
+      const as = String(av);
+      const bs = String(bv);
+      if (as !== bs) return as < bs ? -1 : 1;
+    }
+  }
+  return ax.length - bx.length;
+}
+
 export async function getAllRooms(includeInactive = false, tenantId?: number) {
   const db = await getDb();
   if (!db) return [];
@@ -431,8 +466,15 @@ export async function getAllRooms(includeInactive = false, tenantId?: number) {
   if (!includeInactive) conditions.push(eq(rooms.isActive, true));
   if (tenantId) conditions.push(eq(rooms.tenantId, tenantId));
   
-  if (conditions.length === 0) return db.select().from(rooms);
-  return db.select().from(rooms).where(and(...conditions));
+  // SEM isso, o Postgres não garante nenhuma ordem estável — como o MVCC
+  // do Postgres reescreve a linha inteira num novo local físico a cada
+  // UPDATE (nunca "no lugar"), uma sala editada passava a aparecer sempre
+  // por último, sem relação nenhuma com o nome ou data de criação dela.
+  const result = conditions.length === 0
+    ? await db.select().from(rooms)
+    : await db.select().from(rooms).where(and(...conditions));
+
+  return result.sort((a, b) => naturalCompare(a.name || "", b.name || ""));
 }
 
 export async function deleteRoom(id: number, tenantId?: number) {
