@@ -592,16 +592,21 @@ export const appRouter = router({
         const durationMs = input.endTime.getTime() - input.startTime.getTime();
         const durationHours = durationMs / (1000 * 60 * 60);
         const totalPrice = Math.ceil(durationHours * room.pricePerHour);
-        
-        const balance = await db.getCreditBalance(ctx.auth.id);
+
+        const tenantId = room.tenantId || 1;
+
+        // SECURITY/FINANCEIRO: saldo verificado ISOLADO por tenant. Sem o
+        // tenantId aqui, um profissional vinculado a mais de uma empresa
+        // poderia reservar uma sala da Empresa B usando crédito que só
+        // possui na Empresa A (a checagem passava com o saldo combinado,
+        // mas o débito abaixo é lançado só no tenant da sala reservada).
+        const balance = await db.getCreditBalance(ctx.auth.id, tenantId);
         if (balance < totalPrice) {
           throw new TRPCError({ 
             code: 'PRECONDITION_FAILED', 
             message: 'Insufficient credits' 
           });
         }
-        
-        const tenantId = room.tenantId || 1;
         
         // Check room block conflicts
         const hasBlockConflict = await db.checkRoomBlockConflict(
@@ -832,12 +837,13 @@ export const appRouter = router({
           // (booking.professionalId), não para quem executou o cancelamento
           // (ctx.auth.id) — um admin/recepcionista pode cancelar em nome de outro
           // profissional, e o crédito não pode parar na conta de quem cancelou.
-          const balance = await db.getCreditBalance(booking.professionalId);
+          const refundTenantId = booking.tenantId || 1;
+          const balance = await db.getCreditBalance(booking.professionalId, refundTenantId);
           const newBalance = balance + refundAmount;
           
           await db.addCredit({
             professionalId: booking.professionalId,
-            tenantId: booking.tenantId || 1,
+            tenantId: refundTenantId,
             amount: refundAmount,
             type: 'refund',
             bookingId: input.id,
