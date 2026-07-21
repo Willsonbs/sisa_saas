@@ -115,24 +115,6 @@ describe("bookingPolicy.get", () => {
   });
 });
 
-// ─── bookingPolicy.update ─────────────────────────────────────────────────────
-describe("bookingPolicy.update", () => {
-  beforeEach(() => {
-    vi.mocked(db.updateTenant).mockResolvedValue(undefined as any);
-    vi.mocked(db.createAuditLog).mockResolvedValue(undefined);
-  });
-
-  it("admin can update cancellation window", async () => {
-    const result = await adminCaller.bookingPolicy.update({
-      cancellationWindowMinutes: 120,
-    });
-    expect(result.success).toBe(true);
-    expect(db.updateTenant).toHaveBeenCalledWith(1, expect.objectContaining({ cancellationWindowMinutes: 120 }));
-  });
-
-  it("non-admin cannot update policy", async () => {
-    await expect(
-      caller.bookingPolicy.update({ cancellationWindowMinutes: 60 })
-    ).rejects.toThrow();
-  });
-});
+// bookingPolicy.update foi removido — a edição da janela de cancelamento
+// agora é feita só via tenants.update (tela Configurações), evitando a
+// duplicação que existia entre "Políticas de Reserva" e "Configurações".

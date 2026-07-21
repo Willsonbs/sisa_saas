@@ -7,7 +7,6 @@ import {
   bookings, InsertBooking, Booking,
   credits, InsertCredit, Credit,
   payments, InsertPayment, Payment,
-  cancellationRules, InsertCancellationRule, CancellationRule,
   notifications, InsertNotification, Notification,
   apiKeys, InsertApiKey, ApiKey,
   settings, InsertSetting, Setting,
@@ -752,68 +751,13 @@ export async function getPaymentHistory(professionalId: number, limit = 50, tena
     .limit(limit);
 }
 
-// ============= CANCELLATION RULES =============
-
-export async function getActiveCancellationRules(tenantId?: number) {
-  const db = await getDb();
-  if (!db) return [];
-  
-  const conditions: any[] = [eq(cancellationRules.isActive, true)];
-  if (tenantId) {
-    conditions.push(or(
-      eq(cancellationRules.tenantId, tenantId),
-      sql`${cancellationRules.tenantId} IS NULL`
-    ));
-  }
-  
-  return db.select().from(cancellationRules)
-    .where(and(...conditions))
-    .orderBy(desc(cancellationRules.hoursBeforeBooking));
-}
-
-export async function createCancellationRule(rule: InsertCancellationRule) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  
-  const result = await db.insert(cancellationRules).values(rule);
-  return result;
-}
-
-export async function getCancellationRules(tenantId?: number) {
-  const db = await getDb();
-  if (!db) return [];
-  
-  if (tenantId) {
-    return db.select().from(cancellationRules)
-      .where(or(
-        eq(cancellationRules.tenantId, tenantId),
-        sql`${cancellationRules.tenantId} IS NULL`
-      ))
-      .orderBy(desc(cancellationRules.hoursBeforeBooking));
-  }
-  
-  return db.select().from(cancellationRules).orderBy(desc(cancellationRules.hoursBeforeBooking));
-}
-
-export async function updateCancellationRule(id: number, data: Partial<InsertCancellationRule>, tenantId?: number) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  // SECURITY: se tenantId fornecido, garante que a regra pertence ao tenant
-  const condition = tenantId
-    ? and(eq(cancellationRules.id, id), eq(cancellationRules.tenantId, tenantId))
-    : eq(cancellationRules.id, id);
-  await db.update(cancellationRules).set(data).where(condition);
-}
-
-export async function deleteCancellationRule(id: number, tenantId?: number) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  // SECURITY: se tenantId fornecido, garante que a regra pertence ao tenant
-  const condition = tenantId
-    ? and(eq(cancellationRules.id, id), eq(cancellationRules.tenantId, tenantId))
-    : eq(cancellationRules.id, id);
-  await db.delete(cancellationRules).where(condition);
-}
+// Regras de Cancelamento (tabela cancellationRules) foram descontinuadas —
+// removidas em favor da política única em Configurações > Políticas de
+// Cancelamento e Tolerância (tenants.cancellationWindowHours), que já
+// resolvia a mesma necessidade sem o bug de vazamento entre tenants que
+// existia em getActiveCancellationRules(). A tabela cancellationRules
+// permanece no banco (dados antigos, sem uso) — nenhuma migração destrutiva
+// foi feita.
 
 // ============= AUDIT LOGS =============
 

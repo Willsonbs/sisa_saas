@@ -9,7 +9,6 @@ import { Link } from "wouter";
 export default function AdminDashboard() {
   const { data: stats, isLoading } = trpc.admin.stats.useQuery();
   const { data: rooms } = trpc.rooms.list.useQuery({ includeInactive: true });
-  const { data: cancellationRules } = trpc.cancellationRules.list.useQuery();
 
   return (
     <DashboardLayout>
@@ -104,12 +103,6 @@ export default function AdminDashboard() {
               </Link>
             </Button>
             <Button variant="outline" asChild>
-              <Link href="/admin/cancellation-rules">
-                <Settings className="mr-2 h-4 w-4" />
-                Regras de Cancelamento
-              </Link>
-            </Button>
-            <Button variant="outline" asChild>
               <Link href="/admin/reports">
                 <TrendingUp className="mr-2 h-4 w-4" />
                 Relatórios
@@ -175,48 +168,6 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        {/* Cancellation Rules */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Regras de Cancelamento</CardTitle>
-            <CardDescription>Políticas de reembolso configuradas</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {cancellationRules && cancellationRules.length > 0 ? (
-              <div className="space-y-3">
-                {cancellationRules.map((rule) => (
-                  <div
-                    key={rule.id}
-                    className="flex items-center justify-between p-4 border rounded-lg"
-                  >
-                    <div>
-                      <p className="font-medium">
-                        {rule.hoursBeforeBooking}h antes: {rule.refundPercentage}% de reembolso
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {rule.description}
-                      </p>
-                    </div>
-                    <span
-                      className={`text-xs px-2 py-1 rounded-full ${
-                        rule.isActive
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-gray-100 text-gray-700'
-                      }`}
-                    >
-                      {rule.isActive ? 'Ativa' : 'Inativa'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <Settings className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Nenhuma regra configurada</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
     </DashboardLayout>
   );
