@@ -321,17 +321,24 @@ export async function getAllProfessionals(tenantId?: number) {
   const db = await getDb();
   if (!db) return [];
 
-  // Subquery: sum of credit balance per professional
-  const creditSumSq = db
-    .select({
-      professionalId: credits.professionalId,
-      creditBalance: sql<number>`COALESCE(SUM(${credits.amount}), 0)`.as('creditBalance'),
-    })
-    .from(credits)
-    .groupBy(credits.professionalId)
-    .as('creditSums');
-
   if (tenantId) {
+    // SECURITY/FINANCEIRO: subquery de saldo de crédito ISOLADA por tenant.
+    // Antes somava credits.amount de TODOS os tenants do profissional
+    // (sem WHERE tenantId), então um profissional vinculado a mais de uma
+    // empresa aparecia, para o admin de qualquer uma delas, com o saldo
+    // COMBINADO de todas — vazando valor financeiro de uma empresa para
+    // outra, e divergindo do saldo que o próprio profissional vê (esse já
+    // era corretamente isolado via getCreditBalance(id, tenantId)).
+    const creditSumSq = db
+      .select({
+        professionalId: credits.professionalId,
+        creditBalance: sql<number>`COALESCE(SUM(${credits.amount}), 0)`.as('creditBalance'),
+      })
+      .from(credits)
+      .where(eq(credits.tenantId, tenantId))
+      .groupBy(credits.professionalId)
+      .as('creditSums');
+
     // Single JOIN query — avoids two-step fetch and IN() with stale IDs
     return db
       .select({
@@ -365,6 +372,19 @@ export async function getAllProfessionals(tenantId?: number) {
       .where(eq(users.role, 'professional'));
   }
 
+  // Caminho sem tenantId: hoje nenhum chamador usa (admin.listUsers e
+  // admin.stats sempre passam ctx.auth.tenantId), mantido só como fallback
+  // defensivo — aqui sim soma entre todos os tenants, por não haver como
+  // isolar sem um tenant de referência.
+  const creditSumSqAllTenants = db
+    .select({
+      professionalId: credits.professionalId,
+      creditBalance: sql<number>`COALESCE(SUM(${credits.amount}), 0)`.as('creditBalance'),
+    })
+    .from(credits)
+    .groupBy(credits.professionalId)
+    .as('creditSums');
+
   return db
     .select({
       id: users.id,
@@ -383,10 +403,10 @@ export async function getAllProfessionals(tenantId?: number) {
       publicProfileSlug: users.publicProfileSlug,
       role: users.role,
       createdAt: users.createdAt,
-      creditBalance: sql<number>`COALESCE(${creditSumSq.creditBalance}, 0)`,
+      creditBalance: sql<number>`COALESCE(${creditSumSqAllTenants.creditBalance}, 0)`,
     })
     .from(users)
-    .leftJoin(creditSumSq, eq(users.id, creditSumSq.professionalId))
+    .leftJoin(creditSumSqAllTenants, eq(users.id, creditSumSqAllTenants.professionalId))
     .where(eq(users.role, 'professional'));
 }
 
