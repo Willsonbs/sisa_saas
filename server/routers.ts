@@ -5,7 +5,6 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import * as db from "./db";
-import { getCancellationRules, createCancellationRule, updateCancellationRule, deleteCancellationRule } from "./db";
 import { getCreditPackageById, CREDIT_PACKAGES, buildCustomCreditPackage, MIN_CUSTOM_CREDIT_AMOUNT_CENTS } from "./products";
 import { 
   sendEmail, 
@@ -807,17 +806,18 @@ export const appRouter = router({
         
         const now = new Date();
         const hoursUntilBooking = (booking.startTime.getTime() - now.getTime()) / (1000 * 60 * 60);
-        
-        const rules = await db.getActiveCancellationRules();
-        let refundPercentage = 0;
-        
-        for (const rule of rules) {
-          if (hoursUntilBooking >= rule.hoursBeforeBooking) {
-            refundPercentage = rule.refundPercentage;
-            break;
-          }
-        }
-        
+
+        // Política única de reembolso (Configurações > Políticas de
+        // Cancelamento e Tolerância): cancelamento com cancellationWindowHours
+        // ou mais de antecedência = reembolso total; menos que isso = sem
+        // reembolso. Substitui o antigo sistema de "Regras de Cancelamento"
+        // por faixas (removido — além de duplicar essa mesma configuração,
+        // tinha um bug real: db.getActiveCancellationRules() era chamado sem
+        // tenantId, então o cálculo podia usar regras de OUTRAS empresas).
+        const tenant = await db.getTenantById(booking.tenantId ?? ctx.auth.tenantId);
+        const cancellationWindowHours = tenant?.cancellationWindowHours ?? 12;
+        const refundPercentage = hoursUntilBooking >= cancellationWindowHours ? 100 : 0;
+
         const refundAmount = Math.floor(booking.totalPrice * (refundPercentage / 100));
         
         await db.updateBooking(input.id, {
@@ -1356,49 +1356,6 @@ export const appRouter = router({
       }),
   }),
 
-  cancellationRules: router({
-    // SECURITY: list filtrado pelo tenant do usuário logado (protectedProcedure)
-    list: protectedProcedure.query(async ({ ctx }) => {
-      return await getCancellationRules(ctx.auth.tenantId);
-    }),
-    create: adminProcedure
-      .input(
-        z.object({
-          hoursBeforeBooking: z.number().min(0),
-          refundPercentage: z.number().min(0).max(100),
-          description: z.string(),
-          isActive: z.boolean().optional(),
-        })
-      )
-      .mutation(async ({ ctx, input }) => {
-        // SECURITY: vincular regra ao tenant do admin
-        await createCancellationRule({ ...input, tenantId: ctx.auth.tenantId });
-        return { success: true };
-      }),
-    update: adminProcedure
-      .input(
-        z.object({
-          id: z.number(),
-          hoursBeforeBooking: z.number().min(0).optional(),
-          refundPercentage: z.number().min(0).max(100).optional(),
-          description: z.string().optional(),
-          isActive: z.boolean().optional(),
-        })
-      )
-      .mutation(async ({ ctx, input }) => {
-        // SECURITY: só atualiza regras do próprio tenant
-        await updateCancellationRule(input.id, input, ctx.auth.tenantId);
-        return { success: true };
-      }),
-    delete: adminProcedure
-      .input(z.object({ id: z.number() }))
-      .mutation(async ({ ctx, input }) => {
-        // SECURITY: só deleta regras do próprio tenant
-        await deleteCancellationRule(input.id, ctx.auth.tenantId);
-        return { success: true };
-      }),
-  }),
-
   // ============= TENANT MANAGEMENT =============
   tenants: router({
     current: protectedProcedure.query(async ({ ctx }) => {
@@ -1896,33 +1853,17 @@ export const appRouter = router({
     get: protectedProcedure.query(async ({ ctx }) => {
       const tenant = await db.getTenantById(ctx.auth.tenantId);
       if (!tenant) throw new TRPCError({ code: 'NOT_FOUND', message: 'Tenant não encontrado' });
+      // Fonte única de verdade: Configurações > Políticas de Cancelamento e
+      // Tolerância (cancellationWindowHours). Antes havia uma segunda tela
+      // ("Políticas de Reserva") escrevendo em cancellationWindowMinutes
+      // separadamente, o que podia deixar as duas telas dessincronizadas —
+      // removida, e cancellationWindowMinutes agora é sempre derivado.
       return {
-        cancellationWindowMinutes: (tenant as any).cancellationWindowMinutes ?? tenant.cancellationWindowHours * 60,
+        cancellationWindowMinutes: tenant.cancellationWindowHours * 60,
         cancellationWindowHours: tenant.cancellationWindowHours,
         lateArrivalToleranceMinutes: tenant.lateArrivalToleranceMinutes,
       };
     }),
-
-    // Atualiza a política do tenant (admin only)
-    update: adminProcedure
-      .input(z.object({
-        cancellationWindowMinutes: z.number().min(0).max(10080).optional(), // max 7 days
-        lateArrivalToleranceMinutes: z.number().min(0).max(120).optional(),
-      }))
-      .mutation(async ({ ctx, input }) => {
-        const tenantId = ctx.auth.tenantId;
-        await db.updateTenant(tenantId, input as any);
-        await db.createAuditLog({
-          tenantId,
-          userId: ctx.auth.id,
-          userEmail: ctx.auth.email,
-          action: 'tenant.policy_update',
-          entityType: 'tenant',
-          entityId: tenantId,
-          after: JSON.stringify(input),
-        });
-        return { success: true };
-      }),
 
     // Retorna a duração padrão de atendimento do profissional logado
     getMyAppointmentDuration: professionalProcedure.query(async ({ ctx }) => {
