@@ -5,7 +5,7 @@ import { trpc } from "@/lib/trpc";
 import { useState, useMemo } from "react";
 import {
   ChevronLeft, ChevronRight, X, CheckCircle2, AlertCircle,
-  UserX, Info, Clock, Calendar, MapPin, User, Phone, FileText
+  UserX, Info, Clock, Calendar, MapPin, User, Phone, FileText, Users, Edit2
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
@@ -15,6 +15,9 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger
+} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
@@ -45,6 +48,17 @@ const STATUS_LABEL: Record<string, string> = {
   no_show:               "No-show",
   pending_payment:       "Aguard. pagamento",
   draft:                 "Rascunho",
+};
+
+// Status dos atendimentos (sub-registros de paciente dentro de uma reserva).
+// Recepção pode alterar apenas o status de cada um; nome/telefone/observações
+// do paciente continuam exclusivos do profissional.
+const APPT_STATUS_MAP: Record<string, { label: string; className: string }> = {
+  scheduled:  { label: "Agendado",   className: "bg-gray-100 text-gray-600" },
+  confirmed:  { label: "Confirmado", className: "bg-green-100 text-green-700" },
+  completed:  { label: "Concluído",  className: "bg-blue-100 text-blue-700" },
+  cancelled:  { label: "Cancelado",  className: "bg-red-100 text-red-600" },
+  no_show:    { label: "No-show",    className: "bg-orange-100 text-orange-700" },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -110,13 +124,33 @@ function BookingDetailDialog({
     onError: (e) => toast.error(e.message),
   });
 
+  // Atendimentos (sub-registros de paciente) da reserva, quando o
+  // profissional dividiu a reserva em vários atendimentos. Quando existe
+  // pelo menos 1, a recepção vê a lista com status individual em vez do
+  // nome único da reserva.
+  const { data: appts = [] } = trpc.appointments.listByBooking.useQuery(
+    { bookingId: booking?.id ?? 0 },
+    { enabled: !!booking }
+  );
+  const updateApptMutation = trpc.appointments.update.useMutation({
+    onSuccess: () => {
+      toast.success("Status do atendimento atualizado!");
+      utils.appointments.listByBooking.invalidate({ bookingId: booking?.id });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   if (!booking) return null;
 
   const st = STATUS_LABEL[booking.status] ?? booking.status;
   const colorClass = STATUS_COLOR[booking.status] ?? "bg-gray-400 text-white";
+  const hasAppointments = appts.length > 0;
   const canCancel = booking.status === "confirmed" || booking.status === "pending_payment";
-  const canNoShow = booking.status === "confirmed";
-  const canComplete = booking.status === "confirmed";
+  // Quando a reserva tem atendimentos individuais, o status de cada um é
+  // controlado separadamente (abaixo); os botões de concluir/no-show da
+  // reserva inteira somem para não conflitar com o status por atendimento.
+  const canNoShow = booking.status === "confirmed" && !hasAppointments;
+  const canComplete = booking.status === "confirmed" && !hasAppointments;
 
   return (
     <Dialog open={!!booking} onOpenChange={onClose}>
@@ -148,7 +182,41 @@ function BookingDetailDialog({
               <p className="text-muted-foreground">{fmt(booking.startTime)} – {fmt(booking.endTime)}</p>
             </div>
           </div>
-          {booking.patientName && (
+          {hasAppointments ? (
+            <div className="flex items-start gap-2">
+              <Users className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                <p className="text-xs text-muted-foreground">Atendimentos ({appts.length})</p>
+                {appts.map(appt => {
+                  const ast = APPT_STATUS_MAP[appt.status] ?? APPT_STATUS_MAP.scheduled;
+                  return (
+                    <div key={appt.id} className="flex items-center justify-between bg-[#F5F3EF] rounded-md px-2 py-1.5 text-xs">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-mono text-[#7C5C4A] font-medium shrink-0">
+                          {fmt(appt.startTime)}–{fmt(appt.endTime)}
+                        </span>
+                        <span className="text-[#3D3D2E] truncate">{appt.patientName || "—"}</span>
+                      </div>
+                      <Select
+                        value={appt.status}
+                        onValueChange={v => updateApptMutation.mutate({ id: appt.id, bookingId: booking.id, status: v as any })}
+                      >
+                        <SelectTrigger className={`h-6 w-auto text-[10px] px-1.5 border-0 gap-1 ${ast.className}`}>
+                          <Edit2 className="h-2.5 w-2.5" />
+                          {ast.label}
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(APPT_STATUS_MAP).map(([k, v]) => (
+                            <SelectItem key={k} value={k} className="text-xs">{v.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : booking.patientName && (
             <div className="flex items-start gap-2">
               <UserX className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
               <div>
