@@ -251,10 +251,16 @@ export const appRouter = router({
         professionalRegistry: z.string().optional(),
         registryType: z.string().optional(),
         cpf: z.string().optional(),
+        cnpj: z.string().optional(),
         address: z.string().optional(),
         specialty: z.string().optional(),
         bio: z.string().optional(),
         publicProfileSlug: z.string().optional(),
+        // Mesma coluna que o admin já edita em Profissionais
+        // (admin.updateProfessional) — expor aqui permite que o próprio
+        // profissional configure sua duração padrão de atendimento, sem
+        // duplicar dado nenhum (é a mesma fonte de verdade nos dois lugares).
+        appointmentDurationMinutes: z.number().min(15).max(480).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         if (input.publicProfileSlug) {
