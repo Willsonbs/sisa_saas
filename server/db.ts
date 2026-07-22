@@ -358,6 +358,7 @@ export async function getAllProfessionals(tenantId?: number) {
         publicProfileSlug: users.publicProfileSlug,
         role: users.role,
         createdAt: users.createdAt,
+        appointmentDurationMinutes: users.appointmentDurationMinutes,
         creditBalance: sql<number>`COALESCE(${creditSumSq.creditBalance}, 0)`,
       })
       .from(users)
@@ -403,6 +404,7 @@ export async function getAllProfessionals(tenantId?: number) {
       publicProfileSlug: users.publicProfileSlug,
       role: users.role,
       createdAt: users.createdAt,
+      appointmentDurationMinutes: users.appointmentDurationMinutes,
       creditBalance: sql<number>`COALESCE(${creditSumSqAllTenants.creditBalance}, 0)`,
     })
     .from(users)
