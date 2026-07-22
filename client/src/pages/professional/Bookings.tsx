@@ -195,7 +195,7 @@ function AppointmentsPanel({ bookingId, bookingStart, bookingEnd }: {
                 <div className="flex items-center gap-1">
                   <Select
                     value={appt.status}
-                    onValueChange={v => updateMutation.mutate({ id: appt.id, status: v as any })}
+                    onValueChange={v => updateMutation.mutate({ id: appt.id, bookingId, status: v as any })}
                   >
                     <SelectTrigger className="h-6 w-28 text-xs border-0 bg-transparent p-0 focus:ring-0">
                       <Edit2 className="h-3 w-3 text-muted-foreground" />
