@@ -251,10 +251,16 @@ export const appRouter = router({
         professionalRegistry: z.string().optional(),
         registryType: z.string().optional(),
         cpf: z.string().optional(),
+        cnpj: z.string().optional(),
         address: z.string().optional(),
         specialty: z.string().optional(),
         bio: z.string().optional(),
         publicProfileSlug: z.string().optional(),
+        // Mesma coluna que o admin já edita em Profissionais
+        // (admin.updateProfessional) — expor aqui permite que o próprio
+        // profissional configure sua duração padrão de atendimento, sem
+        // duplicar dado nenhum (é a mesma fonte de verdade nos dois lugares).
+        appointmentDurationMinutes: z.number().min(15).max(480).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         if (input.publicProfileSlug) {
@@ -1747,14 +1753,23 @@ export const appRouter = router({
 
   // ============= APPOINTMENTS =============
   appointments: router({
-    // Listar atendimentos de uma reserva
-    listByBooking: professionalProcedure
+    // Listar atendimentos de uma reserva.
+    // Acesso: admin/profissional dono da reserva (como antes) OU recepção/
+    // financeiro (staff), que agora também enxergam os atendimentos no
+    // modal "Gerenciar Reservas" em vez de só o nome único da reserva.
+    listByBooking: protectedProcedure
       .input(z.object({ bookingId: z.number() }))
       .query(async ({ ctx, input }) => {
-        // Verifica que a reserva pertence ao profissional (ou admin)
+        const role = ctx.auth.role;
+        const isStaff = role === 'admin' || role === 'super_admin' || role === 'receptionist' || role === 'financial';
+        const isProfessional = role === 'professional';
+        if (!isStaff && !isProfessional) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Acesso negado' });
+        }
+        // Verifica que a reserva pertence ao tenant (e, se profissional, que é o dono)
         const booking = await db.getBookingById(input.bookingId, ctx.auth.tenantId);
         if (!booking) throw new TRPCError({ code: 'NOT_FOUND', message: 'Reserva não encontrada' });
-        if (ctx.auth.role !== 'admin' && booking.professionalId !== ctx.auth.id) {
+        if (isProfessional && booking.professionalId !== ctx.auth.id) {
           throw new TRPCError({ code: 'FORBIDDEN', message: 'Acesso negado' });
         }
         const appts = await db.getAppointmentsByBooking(input.bookingId);
@@ -1798,17 +1813,44 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    // Atualizar status/dados de um atendimento
-    update: professionalProcedure
+    // Atualizar status/dados de um atendimento.
+    // Admin/profissional dono continuam podendo editar tudo (status, nome,
+    // telefone, observações). Recepção/financeiro (staff) só pode alterar o
+    // status — dado clínico/identificação do paciente continua exclusivo do
+    // profissional.
+    update: protectedProcedure
       .input(z.object({
         id: z.number(),
+        bookingId: z.number(),
         status: z.enum(['scheduled', 'confirmed', 'completed', 'cancelled', 'no_show']).optional(),
         patientName: z.string().optional(),
         patientPhone: z.string().optional(),
         notes: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        const { id, patientName, patientPhone, ...rest } = input;
+        const role = ctx.auth.role;
+        const isStaff = role === 'admin' || role === 'super_admin' || role === 'receptionist' || role === 'financial';
+        const isProfessional = role === 'professional';
+        if (!isStaff && !isProfessional) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Acesso negado' });
+        }
+        const booking = await db.getBookingById(input.bookingId, ctx.auth.tenantId);
+        if (!booking) throw new TRPCError({ code: 'NOT_FOUND', message: 'Reserva não encontrada' });
+        if (isProfessional && booking.professionalId !== ctx.auth.id) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Acesso negado' });
+        }
+        const isReceptionOrFinancial = role === 'receptionist' || role === 'financial';
+        if (isReceptionOrFinancial && (input.patientName !== undefined || input.patientPhone !== undefined || input.notes !== undefined)) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Recepção só pode alterar o status do atendimento.' });
+        }
+        // Confirma que o atendimento realmente pertence à reserva informada
+        // (evita alterar um atendimento de outra reserva/tenant passando um
+        // id arbitrário).
+        const appts = await db.getAppointmentsByBooking(input.bookingId);
+        if (!appts.some(a => a.id === input.id)) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Atendimento não encontrado nesta reserva' });
+        }
+        const { id, bookingId, patientName, patientPhone, ...rest } = input;
         await db.updateAppointment(id, {
           ...rest,
           patientName: patientName ? encrypt(patientName) : undefined,

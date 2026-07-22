@@ -23,7 +23,9 @@ export default function ProfessionalSettings() {
     bio: "",
     publicProfileSlug: "",
     cpf: "",
+    cnpj: "",
     address: "",
+    appointmentDurationMinutes: 60,
   });
   const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
   const [checkingSlug, setCheckingSlug] = useState(false);
@@ -42,7 +44,9 @@ export default function ProfessionalSettings() {
         bio: user.bio || "",
         publicProfileSlug: autoSlug,
         cpf: user.cpf || "",
+        cnpj: user.cnpj || "",
         address: user.address || "",
+        appointmentDurationMinutes: user.appointmentDurationMinutes || 60,
       });
     }
   }, [user]);
@@ -154,7 +158,7 @@ export default function ProfessionalSettings() {
                 placeholder="Seu nome completo"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Telefone</Label>
                 <Input
@@ -169,6 +173,14 @@ export default function ProfessionalSettings() {
                   value={form.cpf}
                   onChange={e => setForm(p => ({ ...p, cpf: e.target.value }))}
                   placeholder="000.000.000-00"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>CNPJ</Label>
+                <Input
+                  value={form.cnpj}
+                  onChange={e => setForm(p => ({ ...p, cnpj: e.target.value }))}
+                  placeholder="00.000.000/0000-00"
                 />
               </div>
             </div>
@@ -217,6 +229,21 @@ export default function ProfessionalSettings() {
                   placeholder="00/00000"
                 />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Duração padrão de atendimento (minutos)</Label>
+              <Input
+                type="number"
+                min={15}
+                max={480}
+                step={5}
+                value={form.appointmentDurationMinutes}
+                onChange={e => setForm(p => ({ ...p, appointmentDurationMinutes: Number(e.target.value) || 60 }))}
+                placeholder="60"
+              />
+              <p className="text-xs text-muted-foreground">
+                Usado para dividir automaticamente uma reserva de sala em atendimentos (ex: "Gerar auto" em Minhas Reservas).
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Bio / Apresentação</Label>
