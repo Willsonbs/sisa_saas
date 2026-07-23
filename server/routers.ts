@@ -1962,8 +1962,12 @@ export const appRouter = router({
     
     revoke: professionalProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
-        await db.revokeApiKey(input.id);
+      .mutation(async ({ ctx, input }) => {
+        // SECURITY (IDOR): revokeApiKey agora exige o userId do dono e só
+        // desativa se a chave realmente pertencer a quem está chamando —
+        // antes qualquer usuário autenticado podia revogar a API key de
+        // outro usuário só informando o id.
+        await db.revokeApiKey(input.id, ctx.auth.id);
         return { success: true };
       }),
   }),
