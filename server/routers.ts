@@ -67,13 +67,47 @@ const WEEKDAY_AVAILABILITY_FIELDS = [
   'availableThursday', 'availableFriday', 'availableSaturday',
 ] as const;
 
+// SECURITY/BUG (timezone): dia da semana e hora do dia SEMPRE precisam ser
+// calculados no horário de Brasília (America/Sao_Paulo), nunca com
+// date.getDay()/getHours()/getMinutes() puros -- esses métodos usam o
+// timezone do PROCESSO do servidor (em produção normalmente UTC), não o do
+// usuário. Isso causava reservas dentro do horário de funcionamento (ex:
+// sala aberta até 20:00, reserva das 18:00-19:00) serem rejeitadas como
+// "fora do funcionamento": 18:00-19:00 em Brasília (UTC-3) equivale a
+// 21:00-22:00 em UTC, e o servidor comparava 21h/22h contra o limite de
+// fechamento configurado. O mesmo padrão (forçar America/Sao_Paulo via Intl)
+// já era usado em reception.todayBookings por esse motivo.
+const BRAZIL_TZ = 'America/Sao_Paulo';
+
+function getPartsInBrazilTime(date: Date) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: BRAZIL_TZ,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    }).formatToParts(date).map(p => [p.type, p.value])
+  );
+  const year = Number(parts.year);
+  const month = Number(parts.month);
+  const day = Number(parts.day);
+  const hour = Number(parts.hour);
+  const minute = Number(parts.minute);
+  // Dia da semana calculado a partir de ano/mês/dia já resolvidos em
+  // Brasília (usando UTC aqui só para não reintroduzir o mesmo problema de
+  // timezone ao construir a Date auxiliar) — 0=domingo .. 6=sábado.
+  const dow = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return { hour, minute, dow };
+}
+
 // Valida se a sala está configurada como disponível no dia da semana e dentro
 // do horário de funcionamento (openTime/closeTime) do horário solicitado.
 // Enforçado no backend (não só na UI) para que ninguém consiga criar reserva
 // fora do funcionamento configurado da sala, mesmo chamando a API diretamente.
 function assertRoomOpenForSlot(room: any, startTime: Date, endTime: Date) {
-  const dow = startTime.getDay();
-  const field = WEEKDAY_AVAILABILITY_FIELDS[dow];
+  const startParts = getPartsInBrazilTime(startTime);
+  const endParts = getPartsInBrazilTime(endTime);
+
+  const field = WEEKDAY_AVAILABILITY_FIELDS[startParts.dow];
   if (room[field] === false) {
     throw new TRPCError({ code: 'BAD_REQUEST', message: 'Esta sala não está disponível neste dia da semana.' });
   }
@@ -85,8 +119,8 @@ function assertRoomOpenForSlot(room: any, startTime: Date, endTime: Date) {
   };
   const openMins = parseMinutes(room.openTime);
   const closeMins = parseMinutes(room.closeTime);
-  const startMins = startTime.getHours() * 60 + startTime.getMinutes();
-  const endMins = endTime.getHours() * 60 + endTime.getMinutes();
+  const startMins = startParts.hour * 60 + startParts.minute;
+  const endMins = endParts.hour * 60 + endParts.minute;
   if ((openMins != null && startMins < openMins) || (closeMins != null && endMins > closeMins)) {
     throw new TRPCError({ code: 'BAD_REQUEST', message: 'Este horário está fora do funcionamento da sala.' });
   }
