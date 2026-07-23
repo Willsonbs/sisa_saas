@@ -20,7 +20,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useMemo } from "react";
 
 // ─── Palette ────────────────────────────────────────────────────────────────
@@ -38,14 +37,6 @@ const STATUS_MAP: Record<string, { label: string; className: string; icon: React
   completed:          { label: "Concluída",         className: "bg-blue-100 text-blue-700",   icon: <CheckCircle2 className="h-3 w-3" /> },
 };
 
-const APPT_STATUS_MAP: Record<string, { label: string; className: string }> = {
-  scheduled: { label: "Agendado",  className: "bg-gray-100 text-gray-600" },
-  confirmed:  { label: "Confirmado", className: "bg-green-100 text-green-700" },
-  completed:  { label: "Concluído",  className: "bg-blue-100 text-blue-700" },
-  cancelled:  { label: "Cancelado",  className: "bg-red-100 text-red-600" },
-  no_show:    { label: "No-show",    className: "bg-orange-100 text-orange-700" },
-};
-
 function fmt(d: Date | string) {
   return new Date(d).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
@@ -54,6 +45,14 @@ function fmtDate(d: Date | string) {
 }
 
 // ─── Appointment panel ───────────────────────────────────────────────────────
+const BLANK_APPT_FORM = { patientName: "", patientPhone: "", notes: "", startTime: "", endTime: "" };
+const BLANK_EDIT_FORM = { patientName: "", patientPhone: "", notes: "" };
+
+// Visão do profissional: aqui não existe status (Agendado/Confirmado/
+// Cancelado/No-show) -- isso só faz sentido pra recepção (relação
+// profissional x empresa que aluga a sala). O acordo profissional x paciente
+// está fora do escopo do sistema. O profissional só precisa ver/editar
+// horário e dados do paciente de cada atendimento.
 function AppointmentsPanel({ bookingId, bookingStart, bookingEnd }: {
   bookingId: number;
   bookingStart: Date;
@@ -62,14 +61,18 @@ function AppointmentsPanel({ bookingId, bookingStart, bookingEnd }: {
   const utils = trpc.useUtils();
   const { data: appts = [], isLoading } = trpc.appointments.listByBooking.useQuery({ bookingId });
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newAppt, setNewAppt] = useState({ patientName: "", patientPhone: "", notes: "", startTime: "", endTime: "" });
+  const [newAppt, setNewAppt] = useState(BLANK_APPT_FORM);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState(BLANK_EDIT_FORM);
+
+  const invalidate = () => utils.appointments.listByBooking.invalidate({ bookingId });
 
   const createMutation = trpc.appointments.create.useMutation({
     onSuccess: () => {
       toast.success("Atendimento adicionado!");
-      utils.appointments.listByBooking.invalidate({ bookingId });
+      invalidate();
       setShowAddForm(false);
-      setNewAppt({ patientName: "", patientPhone: "", notes: "", startTime: "", endTime: "" });
+      setNewAppt(BLANK_APPT_FORM);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -77,7 +80,8 @@ function AppointmentsPanel({ bookingId, bookingStart, bookingEnd }: {
   const updateMutation = trpc.appointments.update.useMutation({
     onSuccess: () => {
       toast.success("Atendimento atualizado!");
-      utils.appointments.listByBooking.invalidate({ bookingId });
+      invalidate();
+      setEditingId(null);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -85,18 +89,42 @@ function AppointmentsPanel({ bookingId, bookingStart, bookingEnd }: {
   const deleteMutation = trpc.appointments.delete.useMutation({
     onSuccess: () => {
       toast.success("Atendimento removido!");
-      utils.appointments.listByBooking.invalidate({ bookingId });
+      invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
 
   const generateMutation = trpc.appointments.generateFromBooking.useMutation({
     onSuccess: (r) => {
-      toast.success(`${r.slots} atendimentos gerados automaticamente!`);
-      utils.appointments.listByBooking.invalidate({ bookingId });
+      toast.success(`${r.slots} atendimentos gerados automaticamente! Agora é só preencher o paciente de cada um.`);
+      invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
+
+  // Sempre abre o formulário de "Adicionar" em branco -- antes, cancelar não
+  // limpava o estado, então reabrir mostrava o último horário digitado.
+  const openAddForm = () => {
+    setNewAppt(BLANK_APPT_FORM);
+    setShowAddForm(true);
+  };
+  const closeAddForm = () => {
+    setShowAddForm(false);
+    setNewAppt(BLANK_APPT_FORM);
+  };
+
+  const openEditForm = (appt: any) => {
+    setEditingId(appt.id);
+    setEditForm({
+      patientName: appt.patientName || "",
+      patientPhone: appt.patientPhone || "",
+      notes: appt.notes || "",
+    });
+  };
+  const closeEditForm = () => {
+    setEditingId(null);
+    setEditForm(BLANK_EDIT_FORM);
+  };
 
   const handleAdd = () => {
     if (!newAppt.startTime || !newAppt.endTime) {
@@ -112,6 +140,16 @@ function AppointmentsPanel({ bookingId, bookingStart, bookingEnd }: {
       patientName: newAppt.patientName || undefined,
       patientPhone: newAppt.patientPhone || undefined,
       notes: newAppt.notes || undefined,
+    });
+  };
+
+  const handleSaveEdit = (id: number) => {
+    updateMutation.mutate({
+      id,
+      bookingId,
+      patientName: editForm.patientName || undefined,
+      patientPhone: editForm.patientPhone || undefined,
+      notes: editForm.notes || undefined,
     });
   };
 
@@ -139,7 +177,7 @@ function AppointmentsPanel({ bookingId, bookingStart, bookingEnd }: {
             variant="outline"
             size="sm"
             className="text-xs h-7"
-            onClick={() => setShowAddForm(!showAddForm)}
+            onClick={() => (showAddForm ? closeAddForm() : openAddForm())}
           >
             <Plus className="h-3 w-3 mr-1" />
             Adicionar
@@ -168,7 +206,7 @@ function AppointmentsPanel({ bookingId, bookingStart, bookingEnd }: {
           <Textarea placeholder="Observações" className="text-sm min-h-[60px]" value={newAppt.notes}
             onChange={e => setNewAppt(p => ({ ...p, notes: e.target.value }))} />
           <div className="flex gap-2 justify-end">
-            <Button variant="outline" size="sm" onClick={() => setShowAddForm(false)}>Cancelar</Button>
+            <Button variant="outline" size="sm" onClick={closeAddForm}>Cancelar</Button>
             <Button size="sm" onClick={handleAdd} disabled={createMutation.isPending}
               style={{ backgroundColor: TERRACOTTA, color: "white" }}>
               Salvar
@@ -181,39 +219,46 @@ function AppointmentsPanel({ bookingId, bookingStart, bookingEnd }: {
         <p className="text-xs text-muted-foreground py-2">Nenhum atendimento registrado. Use "Gerar auto" para criar automaticamente.</p>
       ) : (
         <div className="space-y-1.5">
-          {appts.map(appt => {
-            const st = APPT_STATUS_MAP[appt.status] ?? APPT_STATUS_MAP.scheduled;
-            return (
-              <div key={appt.id} className="flex items-center justify-between bg-[#F5F3EF] rounded-md px-3 py-2 text-sm">
+          {appts.map(appt => (
+            <div key={appt.id} className="bg-[#F5F3EF] rounded-md px-3 py-2 text-sm">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <span className="font-mono text-xs text-[#7C5C4A] font-medium">
                     {fmt(appt.startTime)} – {fmt(appt.endTime)}
                   </span>
-                  <span className="text-[#3D3D2E]">{appt.patientName || "—"}</span>
-                  <Badge className={`text-xs px-1.5 py-0 ${st.className}`}>{st.label}</Badge>
+                  <span className="text-[#3D3D2E]">{appt.patientName || "Sem paciente informado"}</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Select
-                    value={appt.status}
-                    onValueChange={v => updateMutation.mutate({ id: appt.id, bookingId, status: v as any })}
-                  >
-                    <SelectTrigger className="h-6 w-28 text-xs border-0 bg-transparent p-0 focus:ring-0">
-                      <Edit2 className="h-3 w-3 text-muted-foreground" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(APPT_STATUS_MAP).map(([k, v]) => (
-                        <SelectItem key={k} value={k} className="text-xs">{v.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Button variant="ghost" size="icon" className="h-6 w-6"
+                    onClick={() => (editingId === appt.id ? closeEditForm() : openEditForm(appt))}>
+                    <Edit2 className="h-3 w-3 text-muted-foreground" />
+                  </Button>
                   <Button variant="ghost" size="icon" className="h-6 w-6"
                     onClick={() => deleteMutation.mutate({ id: appt.id })}>
                     <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
                   </Button>
                 </div>
               </div>
-            );
-          })}
+
+              {editingId === appt.id && (
+                <div className="mt-2 space-y-2 border-t border-[#E5E0D8] pt-2">
+                  <Input placeholder="Nome do paciente" className="h-8 text-sm bg-white" value={editForm.patientName}
+                    onChange={e => setEditForm(p => ({ ...p, patientName: e.target.value }))} />
+                  <Input placeholder="Telefone (opcional)" className="h-8 text-sm bg-white" value={editForm.patientPhone}
+                    onChange={e => setEditForm(p => ({ ...p, patientPhone: e.target.value }))} />
+                  <Textarea placeholder="Observações" className="text-sm min-h-[60px] bg-white" value={editForm.notes}
+                    onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))} />
+                  <div className="flex gap-2 justify-end">
+                    <Button variant="outline" size="sm" onClick={closeEditForm}>Cancelar</Button>
+                    <Button size="sm" onClick={() => handleSaveEdit(appt.id)} disabled={updateMutation.isPending}
+                      style={{ backgroundColor: TERRACOTTA, color: "white" }}>
+                      Salvar
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>
