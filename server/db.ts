@@ -1009,11 +1009,14 @@ export async function updateApiKeyLastUsed(id: number) {
   await db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, id));
 }
 
-export async function revokeApiKey(id: number) {
+export async function revokeApiKey(id: number, userId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  await db.update(apiKeys).set({ isActive: false }).where(eq(apiKeys.id, id));
+  // SECURITY (IDOR): sem o filtro por userId, qualquer usuário autenticado
+  // podia revogar a API key de QUALQUER outro usuário só adivinhando/
+  // incrementando o id (nenhuma checagem de posse existia antes).
+  await db.update(apiKeys).set({ isActive: false })
+    .where(and(eq(apiKeys.id, id), eq(apiKeys.userId, userId)));
 }
 
 // ============= SETTINGS =============
