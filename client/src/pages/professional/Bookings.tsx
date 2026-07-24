@@ -27,6 +27,11 @@ const TERRACOTTA = "#7C5C4A";
 const FOREST_DARK = "#3D3D2E";
 const WARM_BG = "#F5F3EF";
 
+// Colunas da lista de reservas: barra de status, Sala, Data/Horário,
+// Paciente, Valor, Status, Cancelamento, Ações. Cabeçalho e linhas usam
+// exatamente o mesmo template, pra garantir alinhamento entre eles.
+const BOOKING_ROW_COLS = "10px 1fr 1.5fr 1fr 0.8fr 1fr 1.3fr auto";
+
 // ─── Status helpers ──────────────────────────────────────────────────────────
 const STATUS_MAP: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
   draft:              { label: "Rascunho",          className: "bg-gray-100 text-gray-600",   icon: <Info className="h-3 w-3" /> },
@@ -40,8 +45,12 @@ const STATUS_MAP: Record<string, { label: string; className: string; icon: React
 function fmt(d: Date | string) {
   return new Date(d).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
-function fmtDate(d: Date | string) {
-  return new Date(d).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
+function fmtShortDate(d: Date | string) {
+  return new Date(d).toLocaleDateString("pt-BR");
+}
+// Formato compacto de uma linha só, ex: "24/07/2026 12:00–14:00"
+function fmtDateTime(start: Date | string, end: Date | string) {
+  return `${fmtShortDate(start)} ${fmt(start)}–${fmt(end)}`;
 }
 
 // ─── Appointment panel ───────────────────────────────────────────────────────
@@ -267,8 +276,12 @@ function AppointmentsPanel({ bookingId, bookingStart, bookingEnd }: {
 
 // ─── Main page ───────────────────────────────────────────────────────────────
 export default function Bookings() {
-  const [dateFilter, setDateFilter] = useState("");
-  const { data: bookings, isLoading, refetch } = trpc.bookings.list.useQuery({ date: dateFilter || undefined });
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const { data: bookings, isLoading, refetch } = trpc.bookings.list.useQuery({
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
+  });
   const { data: policy } = trpc.bookingPolicy.get.useQuery();
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [cancelReason, setCancelReason] = useState("");
@@ -337,21 +350,24 @@ export default function Bookings() {
           </div>
         )}
 
-        {/* Filtro de data */}
-        <div className="flex items-center gap-2">
-          <Label htmlFor="date-filter" className="text-sm text-muted-foreground flex items-center gap-1.5 shrink-0">
-            <Calendar className="h-3.5 w-3.5" />
-            Filtrar por data
-          </Label>
+        {/* Filtro de período */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">De</span>
           <Input
-            id="date-filter"
             type="date"
             className="h-8 w-auto text-sm"
-            value={dateFilter}
-            onChange={e => setDateFilter(e.target.value)}
+            value={dateFrom}
+            onChange={e => setDateFrom(e.target.value)}
           />
-          {dateFilter && (
-            <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setDateFilter("")}>
+          <span className="text-xs text-muted-foreground">até</span>
+          <Input
+            type="date"
+            className="h-8 w-auto text-sm"
+            value={dateTo}
+            onChange={e => setDateTo(e.target.value)}
+          />
+          {(dateFrom || dateTo) && (
+            <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setDateFrom(""); setDateTo(""); }}>
               Limpar
             </Button>
           )}
@@ -363,10 +379,12 @@ export default function Bookings() {
             {[1, 2, 3].map(i => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
           </div>
         ) : bookings && bookings.length > 0 ? (
-          <div className="border border-[#D8D0C8] rounded-lg overflow-hidden">
-            {/* Cabeçalho, só em telas maiores */}
-            <div className="hidden sm:grid gap-3 px-4 py-2 text-xs font-semibold text-muted-foreground bg-[#F5F3EF] border-b border-[#D8D0C8]"
-              style={{ gridTemplateColumns: "1fr 1.6fr 1fr 1fr 1fr 1fr auto" }}>
+          <div className="border border-[#D8D0C8] rounded-lg overflow-x-auto">
+            {/* Cabeçalho, só em telas maiores. Mesmo template de colunas da linha,
+                pra garantir alinhamento exato entre cabeçalho e conteúdo. */}
+            <div className="hidden sm:grid gap-3 px-4 py-2 text-xs font-semibold text-muted-foreground bg-[#F5F3EF] border-b border-[#D8D0C8] items-center min-w-[720px]"
+              style={{ gridTemplateColumns: BOOKING_ROW_COLS }}>
+              <span />
               <span>Sala</span>
               <span>Data / Horário</span>
               <span>Paciente</span>
@@ -385,36 +403,34 @@ export default function Bookings() {
 
               return (
                 <div key={booking.id} className={idx > 0 ? "border-t border-[#D8D0C8]" : ""}>
-                  {/* Linha compacta */}
-                  <div className="flex items-center gap-3 px-4 py-2.5">
-                    <div className="w-1 self-stretch rounded-full shrink-0" style={{ backgroundColor: barColor }} />
+                  {/* Linha compacta - mesmo grid do cabeçalho */}
+                  <div className="grid gap-3 px-4 py-2.5 items-center text-sm min-w-[720px]"
+                    style={{ gridTemplateColumns: BOOKING_ROW_COLS }}>
+                    <div className="w-1 self-stretch rounded-full" style={{ backgroundColor: barColor }} />
 
-                    <div className="flex-1 min-w-0 grid grid-cols-2 sm:grid gap-x-3 gap-y-1 items-center text-sm"
-                      style={{ gridTemplateColumns: "1fr 1.6fr 1fr 1fr 1fr 1fr" }}>
-                      <span className="font-medium text-[#3D3D2E] truncate flex items-center gap-1">
-                        <MapPin className="h-3 w-3 text-muted-foreground shrink-0 sm:hidden" />
-                        {(booking as any).room?.name || "Sala"}
-                      </span>
-                      <span className="text-[#3D3D2E]">
-                        {fmtDate(booking.startTime)} · {fmt(booking.startTime)}–{fmt(booking.endTime)}
-                      </span>
-                      <span className="text-[#3D3D2E] truncate">{(booking as any).patientName || "—"}</span>
-                      <span className="text-[#3D3D2E]">{formatCurrency(booking.totalPrice)}</span>
-                      <Badge className={`text-xs flex items-center gap-1 w-fit ${st.className}`}>
-                        {st.icon}{st.label}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground leading-tight">
-                        {canCancelStatus && !canCancel && (
-                          <span className="flex items-center gap-1 text-orange-600">
-                            <AlertCircle className="h-3 w-3 shrink-0" />
-                            {blockLabel}
-                          </span>
-                        )}
-                      </span>
-                    </div>
+                    <span className="font-medium text-[#3D3D2E] truncate flex items-center gap-1">
+                      <MapPin className="h-3 w-3 text-muted-foreground shrink-0 sm:hidden" />
+                      {(booking as any).room?.name || "Sala"}
+                    </span>
+                    <span className="text-[#3D3D2E] whitespace-nowrap">
+                      {fmtDateTime(booking.startTime, booking.endTime)}
+                    </span>
+                    <span className="text-[#3D3D2E] truncate">{(booking as any).patientName || "—"}</span>
+                    <span className="text-[#3D3D2E]">{formatCurrency(booking.totalPrice)}</span>
+                    <Badge className={`text-xs flex items-center gap-1 w-fit ${st.className}`}>
+                      {st.icon}{st.label}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground leading-tight truncate" title={blockLabel ?? undefined}>
+                      {canCancelStatus && !canCancel && (
+                        <span className="flex items-center gap-1 text-orange-600">
+                          <AlertCircle className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{blockLabel}</span>
+                        </span>
+                      )}
+                    </span>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center justify-end gap-1">
                       <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 px-2"
                         onClick={() => toggleExpand(booking.id)}>
                         Atendimentos
@@ -425,9 +441,10 @@ export default function Bookings() {
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button variant="outline" size="sm"
-                              className="h-7 text-xs text-destructive hover:bg-destructive hover:text-destructive-foreground px-2"
+                              className="h-7 text-xs text-red-600 bg-red-50 border-red-200 hover:bg-red-100 hover:text-red-700 px-2"
                               disabled={cancelMutation.isPending}>
-                              <X className="h-3 w-3" />
+                              <X className="h-3 w-3 mr-1" />
+                              Cancelar
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
