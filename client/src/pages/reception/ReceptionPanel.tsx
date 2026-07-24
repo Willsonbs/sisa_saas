@@ -12,7 +12,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  Search, CalendarDays, Clock, MapPin, User, Phone, FileText, ChevronLeft, ChevronRight,
+  Search, CalendarDays, Clock, MapPin, User, Phone, FileText,
   CheckCircle2, AlertCircle, XCircle, HelpCircle, X, Building2,
 } from "lucide-react";
 
@@ -31,13 +31,6 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   no_show:                { label: "Não compareceu", color: "bg-red-100 text-red-700",       icon: <XCircle className="h-3.5 w-3.5" /> },
   completed:              { label: "Concluída",      color: "bg-blue-100 text-blue-700",     icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
   canceled_with_credit:   { label: "Cancelada",      color: "bg-gray-100 text-gray-500",     icon: <XCircle className="h-3.5 w-3.5" /> },
-};
-
-type Mode = "day" | "future" | "past";
-const MODE_LABEL: Record<Mode, string> = {
-  day: "Data específica",
-  future: "Futuras",
-  past: "Passadas",
 };
 
 function formatTime(ts: number) {
@@ -139,19 +132,19 @@ function BookingDetailDialog({ booking, onClose }: { booking: Booking | null; on
 
 export default function ReceptionPanel() {
   const [search, setSearch] = useState("");
-  const [mode, setMode] = useState<Mode>("day");
-  const [selectedDate, setSelectedDate] = useState(() => new Date());
+  const today = toDateStr(new Date());
+  const [dateFrom, setDateFrom] = useState(today);
+  const [dateTo, setDateTo] = useState(today);
   const [roomFilter, setRoomFilter] = useState<string>("all");
   const [selectedProfessional, setSelectedProfessional] = useState<{ id: number; name: string } | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchBoxRef = useRef<HTMLDivElement>(null);
 
-  const dateStr = toDateStr(selectedDate);
   const roomIdFilter = roomFilter === "all" ? undefined : Number(roomFilter);
 
   const { data: bookings = [], isLoading } = trpc.reception.bookings.useQuery(
-    { mode, date: mode === "day" ? dateStr : undefined, roomId: roomIdFilter },
+    { dateFrom, dateTo, roomId: roomIdFilter },
     { refetchInterval: 30_000 }
   );
 
@@ -217,19 +210,14 @@ export default function ReceptionPanel() {
     return Array.from(groups.values()).sort((a, b) => a.roomName.localeCompare(b.roomName, "pt-BR"));
   }, [filtered]);
 
-  function prevDay() {
-    setSelectedDate((d) => { const n = new Date(d); n.setDate(n.getDate() - 1); return n; });
-  }
-  function nextDay() {
-    setSelectedDate((d) => { const n = new Date(d); n.setDate(n.getDate() + 1); return n; });
-  }
-  function goToday() {
-    setSelectedDate(new Date());
+  function resetToToday() {
+    setDateFrom(today);
+    setDateTo(today);
   }
 
-  const isToday = mode === "day" && toDateStr(selectedDate) === toDateStr(new Date());
   // Datas diferentes só importam visualmente quando o intervalo cobre vários dias
-  const showDateOnRows = mode !== "day";
+  const showDateOnRows = dateFrom !== dateTo;
+  const isToday = dateFrom === today && dateTo === today;
 
   return (
     <DashboardLayout>
@@ -243,48 +231,31 @@ export default function ReceptionPanel() {
           <p className="text-gray-500 mt-1 text-sm">Relatório de reservas por sala, com filtros de período e sala.</p>
         </div>
 
-        {/* Filtros: modo (dia/futuras/passadas) + sala */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-            {(["day", "future", "past"] as Mode[]).map((m) => (
-              <Button
-                key={m}
-                type="button"
-                size="sm"
-                variant={mode === m ? "default" : "ghost"}
-                className={`h-8 text-xs px-3 ${mode === m ? "bg-[#7C5C4A] hover:bg-[#6B4E3E] text-white" : "text-gray-600"}`}
-                onClick={() => setMode(m)}
-              >
-                {m === "day" ? "Hoje / data" : MODE_LABEL[m]}
-              </Button>
-            ))}
-          </div>
-
-          {mode === "day" && (
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={prevDay} className="h-9 w-9 p-0">
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <div className="text-center min-w-[150px]">
-                <p className="text-sm font-semibold text-gray-800 capitalize">
-                  {isToday ? "Hoje" : selectedDate.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short" })}
-                </p>
-                <p className="text-xs text-gray-400">{selectedDate.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}</p>
-              </div>
-              <Button variant="outline" size="sm" onClick={nextDay} className="h-9 w-9 p-0">
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-              {!isToday && (
-                <Button variant="outline" size="sm" onClick={goToday} className="text-xs h-9 px-3">
-                  Hoje
-                </Button>
-              )}
-            </div>
+        {/* Filtros: período (data início/fim) + sala */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-gray-500">De</span>
+          <Input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="h-8 w-auto text-sm"
+          />
+          <span className="text-xs text-gray-500">até</span>
+          <Input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="h-8 w-auto text-sm"
+          />
+          {!isToday && (
+            <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={resetToToday}>
+              Hoje
+            </Button>
           )}
 
           <Select value={roomFilter} onValueChange={setRoomFilter}>
-            <SelectTrigger className="h-9 w-full sm:w-[200px]">
-              <Building2 className="h-4 w-4 text-gray-400 mr-1" />
+            <SelectTrigger className="h-8 w-full sm:w-[180px] text-sm">
+              <Building2 className="h-3.5 w-3.5 text-gray-400 mr-1" />
               <SelectValue placeholder="Todas as salas" />
             </SelectTrigger>
             <SelectContent>
@@ -385,56 +356,44 @@ export default function ReceptionPanel() {
                     const cfg = STATUS_CONFIG[b.status] ?? { label: b.status, color: "bg-gray-100 text-gray-600", icon: null };
                     const isPast = b.endTime < Date.now();
                     return (
-                      <Card
+                      <div
                         key={b.id}
-                        className={`border transition-all cursor-pointer hover:shadow-md ${isPast && mode === "day" ? "opacity-60" : ""}`}
+                        className={`flex items-center gap-3 px-3 py-1.5 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors ${isPast && isToday ? "opacity-60" : ""}`}
                         onClick={() => setSelectedBooking(b)}
                       >
-                        <CardContent className="p-4">
-                          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                            {/* Time block */}
-                            <div className="flex-shrink-0 w-24 text-center bg-[#EDE8E3] rounded-lg py-2 px-3">
-                              {showDateOnRows && (
-                                <p className="text-[10px] font-semibold text-[#9B7B6A] uppercase">{formatDateShort(b.startTime)}</p>
-                              )}
-                              <p className="text-lg font-bold text-[#7C5C4A]">{formatTime(b.startTime)}</p>
-                              <p className="text-xs text-[#9B7B6A]">{formatTime(b.endTime)}</p>
-                            </div>
+                        <div className="flex-shrink-0 w-16 text-center">
+                          {showDateOnRows && (
+                            <p className="text-[9px] font-semibold text-[#9B7B6A] uppercase leading-none">{formatDateShort(b.startTime)}</p>
+                          )}
+                          <p className="text-sm font-bold text-[#7C5C4A] leading-tight">{formatTime(b.startTime)}</p>
+                        </div>
 
-                            {/* Main info */}
-                            <div className="flex-1 min-w-0 space-y-1">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-semibold text-gray-900">{b.professionalName}</span>
-                                {b.professionalSpecialty && (
-                                  <span className="text-xs text-gray-500">· {b.professionalSpecialty}</span>
-                                )}
-                                <Badge className={`text-xs flex items-center gap-1 ${cfg.color}`}>
-                                  {cfg.icon}{cfg.label}
-                                </Badge>
-                              </div>
+                        <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap text-sm">
+                          <span className="font-semibold text-gray-900">{b.professionalName}</span>
+                          {b.professionalSpecialty && (
+                            <span className="text-xs text-gray-500">· {b.professionalSpecialty}</span>
+                          )}
+                          {b.patientName && (
+                            <span className="flex items-center gap-1 text-gray-600">
+                              <User className="h-3.5 w-3.5 text-gray-400" />
+                              {b.patientName}
+                            </span>
+                          )}
+                          <span className="flex items-center gap-1 text-xs text-gray-400">
+                            <Clock className="h-3 w-3" />
+                            {Math.round((b.endTime - b.startTime) / 60000)} min
+                          </span>
+                          {b.receptionNotes && (
+                            <span className="text-xs text-amber-700 truncate max-w-[200px]" title={b.receptionNotes}>
+                              📌 {b.receptionNotes}
+                            </span>
+                          )}
+                        </div>
 
-                              <div className="flex flex-wrap gap-3 text-sm text-gray-600">
-                                {b.patientName && (
-                                  <span className="flex items-center gap-1">
-                                    <User className="h-3.5 w-3.5 text-gray-400" />
-                                    {b.patientName}
-                                  </span>
-                                )}
-                                <span className="flex items-center gap-1 text-gray-400">
-                                  <Clock className="h-3.5 w-3.5" />
-                                  {Math.round((b.endTime - b.startTime) / 60000)} min
-                                </span>
-                              </div>
-
-                              {b.receptionNotes && (
-                                <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1 mt-1">
-                                  📌 {b.receptionNotes}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
+                        <Badge className={`text-xs flex items-center gap-1 shrink-0 ${cfg.color}`}>
+                          {cfg.icon}{cfg.label}
+                        </Badge>
+                      </div>
                     );
                   })}
                 </div>
