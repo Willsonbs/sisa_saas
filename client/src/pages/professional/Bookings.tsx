@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
 import {
   Calendar, Clock, MapPin, X, Plus, ChevronDown, ChevronUp,
-  Users, AlertCircle, CheckCircle2, Info, Zap, Trash2, Edit2
+  Users, AlertCircle, CheckCircle2, Info, Zap, Trash2, Edit2, Building2,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { Link } from "wouter";
@@ -17,6 +17,12 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from "@/components/ui/dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  Tooltip, TooltipContent, TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,9 +34,11 @@ const FOREST_DARK = "#3D3D2E";
 const WARM_BG = "#F5F3EF";
 
 // Colunas da lista de reservas: barra de status, Sala, Data/Horário,
-// Paciente, Valor, Status, Cancelamento, Ações. Cabeçalho e linhas usam
+// Paciente, Valor, Status, Atendimentos, Cancelar. Cabeçalho e linhas usam
 // exatamente o mesmo template, pra garantir alinhamento entre eles.
-const BOOKING_ROW_COLS = "10px 1fr 1.5fr 1fr 0.8fr 1fr 1.3fr auto";
+// "Atendimentos" e "Cancelar" ficam em colunas próprias (não um flex
+// compartilhado) pra não pular de posição quando um dos dois some.
+const BOOKING_ROW_COLS = "10px 1fr 1.5fr 1fr 0.8fr 1fr auto auto";
 
 // ─── Status helpers ──────────────────────────────────────────────────────────
 const STATUS_MAP: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
@@ -278,10 +286,12 @@ function AppointmentsPanel({ bookingId, bookingStart, bookingEnd }: {
 export default function Bookings() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [roomFilter, setRoomFilter] = useState("all");
   const { data: bookings, isLoading, refetch } = trpc.bookings.list.useQuery({
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
   });
+  const { data: rooms = [] } = trpc.rooms.list.useQuery({ includeInactive: false });
   const { data: policy } = trpc.bookingPolicy.get.useQuery();
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [cancelReason, setCancelReason] = useState("");
@@ -301,6 +311,12 @@ export default function Bookings() {
       return next;
     });
   };
+
+  const filteredBookings = useMemo(() => {
+    if (!bookings) return [];
+    if (roomFilter === "all") return bookings;
+    return bookings.filter((b) => (b as any).room?.id === Number(roomFilter));
+  }, [bookings, roomFilter]);
 
   // Compute cancellation eligibility for each booking
   const cancellationWindowMs = (policy?.cancellationWindowMinutes ?? 720) * 60 * 1000;
@@ -366,8 +382,21 @@ export default function Bookings() {
             value={dateTo}
             onChange={e => setDateTo(e.target.value)}
           />
-          {(dateFrom || dateTo) && (
-            <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setDateFrom(""); setDateTo(""); }}>
+          <Select value={roomFilter} onValueChange={setRoomFilter}>
+            <SelectTrigger className="h-8 w-full sm:w-[180px] text-sm">
+              <Building2 className="h-3.5 w-3.5 text-gray-400 mr-1" />
+              <SelectValue placeholder="Todas as salas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as salas</SelectItem>
+              {rooms.map((r) => (
+                <SelectItem key={r.id} value={String(r.id)}>{r.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {(dateFrom || dateTo || roomFilter !== "all") && (
+            <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setDateFrom(""); setDateTo(""); setRoomFilter("all"); }}>
               Limpar
             </Button>
           )}
@@ -378,7 +407,7 @@ export default function Bookings() {
           <div className="space-y-2">
             {[1, 2, 3].map(i => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
           </div>
-        ) : bookings && bookings.length > 0 ? (
+        ) : filteredBookings.length > 0 ? (
           <div className="border border-[#D8D0C8] rounded-lg overflow-x-auto">
             {/* Cabeçalho, só em telas maiores. Mesmo template de colunas da linha,
                 pra garantir alinhamento exato entre cabeçalho e conteúdo. */}
@@ -390,10 +419,10 @@ export default function Bookings() {
               <span>Paciente</span>
               <span>Valor</span>
               <span>Status</span>
-              <span>Cancelamento</span>
+              <span />
               <span className="text-right">Ações</span>
             </div>
-            {bookings.map((booking, idx) => {
+            {filteredBookings.map((booking, idx) => {
               const st = STATUS_MAP[booking.status] ?? STATUS_MAP.draft;
               const isOpen = expanded.has(booking.id);
               const { canCancel, label: blockLabel } = getRefundInfo(booking.startTime);
@@ -420,23 +449,18 @@ export default function Bookings() {
                     <Badge className={`text-xs flex items-center gap-1 w-fit ${st.className}`}>
                       {st.icon}{st.label}
                     </Badge>
-                    <span className="text-xs text-muted-foreground leading-tight truncate" title={blockLabel ?? undefined}>
-                      {canCancelStatus && !canCancel && (
-                        <span className="flex items-center gap-1 text-orange-600">
-                          <AlertCircle className="h-3 w-3 shrink-0" />
-                          <span className="truncate">{blockLabel}</span>
-                        </span>
-                      )}
-                    </span>
 
-                    {/* Actions */}
-                    <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 px-2"
-                        onClick={() => toggleExpand(booking.id)}>
-                        Atendimentos
-                        {isOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                      </Button>
+                    {/* Atendimentos: coluna própria, sempre na mesma posição */}
+                    <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 px-2 justify-self-end"
+                      onClick={() => toggleExpand(booking.id)}>
+                      Atendimentos
+                      {isOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                    </Button>
 
+                    {/* Cancelar: coluna própria também, sempre na mesma posição -
+                        vira botão, ícone de motivo (tooltip) ou nada, mas nunca
+                        empurra o "Atendimentos" ao lado. */}
+                    <div className="justify-self-end">
                       {canCancelStatus && canCancel && (
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
@@ -469,6 +493,18 @@ export default function Bookings() {
                             </AlertDialogFooter>
                           </AlertDialogContent>
                         </AlertDialog>
+                      )}
+                      {canCancelStatus && !canCancel && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="inline-flex h-7 w-7 items-center justify-center text-orange-500 cursor-default">
+                              <AlertCircle className="h-4 w-4" />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="max-w-[220px]">{blockLabel}</p>
+                          </TooltipContent>
+                        </Tooltip>
                       )}
                     </div>
                   </div>
