@@ -525,13 +525,19 @@ export const appRouter = router({
 
   bookings: router({
     list: professionalProcedure
-      .input(z.object({ status: z.string().optional(), date: z.string().optional() }).optional())
+      .input(z.object({
+        status: z.string().optional(),
+        dateFrom: z.string().optional(),
+        dateTo: z.string().optional(),
+      }).optional())
       .query(async ({ ctx, input }) => {
         let startMs: number | undefined;
         let endMs: number | undefined;
-        if (input?.date) {
-          startMs = new Date(`${input.date}T00:00:00-03:00`).getTime();
-          endMs = new Date(`${input.date}T23:59:59-03:00`).getTime();
+        if (input?.dateFrom || input?.dateTo) {
+          const from = input?.dateFrom ?? input?.dateTo!;
+          const to = input?.dateTo ?? input?.dateFrom!;
+          startMs = new Date(`${from}T00:00:00-03:00`).getTime();
+          endMs = new Date(`${to}T23:59:59-03:00`).getTime();
         }
         const bookings = await db.getBookingsByProfessional(ctx.auth.id, input?.status, startMs, endMs);
         
