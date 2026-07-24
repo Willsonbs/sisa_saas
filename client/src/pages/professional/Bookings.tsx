@@ -20,9 +20,6 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import {
-  Tooltip, TooltipContent, TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,11 +31,11 @@ const FOREST_DARK = "#3D3D2E";
 const WARM_BG = "#F5F3EF";
 
 // Colunas da lista de reservas: barra de status, Sala, Data/Horário,
-// Paciente, Valor, Status, Atendimentos, Cancelar. Cabeçalho e linhas usam
+// Paciente, Valor, Status, Atendimentos. Cabeçalho e linhas usam
 // exatamente o mesmo template, pra garantir alinhamento entre eles.
-// "Atendimentos" e "Cancelar" ficam em colunas próprias (não um flex
-// compartilhado) pra não pular de posição quando um dos dois some.
-const BOOKING_ROW_COLS = "10px 1fr 1.5fr 1fr 0.8fr 1fr auto auto";
+// Cancelar não é mais uma coluna da linha - fica só no modal de detalhe
+// (clique na linha), pra não competir de espaço/posição com Atendimentos.
+const BOOKING_ROW_COLS = "10px 1fr 1.5fr 1fr 0.8fr 1fr auto";
 
 // ─── Status helpers ──────────────────────────────────────────────────────────
 const STATUS_MAP: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
@@ -59,6 +56,129 @@ function fmtShortDate(d: Date | string) {
 // Formato compacto de uma linha só, ex: "24/07/2026 12:00–14:00"
 function fmtDateTime(start: Date | string, end: Date | string) {
   return `${fmtShortDate(start)} ${fmt(start)}–${fmt(end)}`;
+}
+
+// ─── Booking detail dialog ───────────────────────────────────────────────────
+// Abre ao clicar na linha da reserva. O botão "Cancelar" mora aqui (não na
+// linha da lista), respeitando a mesma regra de antecedência mínima.
+function BookingDetailDialog({
+  booking,
+  onClose,
+  onRefresh,
+  cancellationWindowMs,
+}: {
+  booking: any | null;
+  onClose: () => void;
+  onRefresh: () => void;
+  cancellationWindowMs: number;
+}) {
+  const [cancelReason, setCancelReason] = useState("");
+  const cancelMutation = trpc.bookings.cancel.useMutation({
+    onSuccess: () => {
+      toast.success("Reserva cancelada com sucesso!");
+      onRefresh();
+      onClose();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  if (!booking) return null;
+
+  const st = STATUS_MAP[booking.status] ?? STATUS_MAP.draft;
+  const canCancelStatus = booking.status === "pending_payment" || booking.status === "confirmed";
+  const msUntil = new Date(booking.startTime).getTime() - Date.now();
+  let canCancel = false;
+  let blockLabel: string | null = null;
+  if (canCancelStatus) {
+    if (msUntil <= 0) {
+      blockLabel = "Reserva já iniciada";
+    } else if (msUntil < cancellationWindowMs) {
+      const hoursLeft = Math.floor(msUntil / 3600000);
+      const minWindow = Math.floor(cancellationWindowMs / 3600000);
+      blockLabel = `Cancelamento bloqueado (mín. ${minWindow}h de antecedência, faltam ${hoursLeft}h)`;
+    } else {
+      canCancel = true;
+    }
+  }
+
+  return (
+    <Dialog open={!!booking} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <span>{booking.room?.name || "Reserva"}</span>
+            <Badge className={`text-xs flex items-center gap-1 ${st.className}`}>{st.icon}{st.label}</Badge>
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3 text-sm">
+          <div className="flex items-start gap-2">
+            <Calendar className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+            <div>
+              <p className="font-medium text-[#3D3D2E] capitalize">
+                {new Date(booking.startTime).toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
+              </p>
+              <p className="text-muted-foreground">{fmt(booking.startTime)} – {fmt(booking.endTime)}</p>
+            </div>
+          </div>
+          {booking.patientName && (
+            <div className="flex items-start gap-2">
+              <Users className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+              <p className="font-medium text-[#3D3D2E]">{booking.patientName}</p>
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Valor</span>
+            <span className="font-medium text-[#3D3D2E]">{formatCurrency(booking.totalPrice)}</span>
+          </div>
+        </div>
+
+        <DialogFooter className="flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          {canCancelStatus && (
+            canCancel ? (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm"
+                    className="text-red-600 bg-red-50 border-red-200 hover:bg-red-100 hover:text-red-700"
+                    disabled={cancelMutation.isPending}>
+                    <X className="h-3.5 w-3.5 mr-1" />
+                    Cancelar reserva
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Cancelar reserva</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Tem certeza? Dependendo das regras de reembolso, um crédito pode ser gerado.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <div className="py-2">
+                    <Label className="text-sm">Motivo (opcional)</Label>
+                    <Input className="mt-1" placeholder="Ex: Paciente desmarcou" value={cancelReason}
+                      onChange={e => setCancelReason(e.target.value)} />
+                  </div>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Manter</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={() => cancelMutation.mutate({ id: booking.id, reason: cancelReason || undefined })}>
+                      Cancelar reserva
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            ) : (
+              <p className="text-xs text-orange-600 flex items-center gap-1">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                {blockLabel}
+              </p>
+            )
+          )}
+          <Button variant="ghost" size="sm" onClick={onClose}>Fechar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 // ─── Appointment panel ───────────────────────────────────────────────────────
@@ -294,15 +414,7 @@ export default function Bookings() {
   const { data: rooms = [] } = trpc.rooms.list.useQuery({ includeInactive: false });
   const { data: policy } = trpc.bookingPolicy.get.useQuery();
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
-  const [cancelReason, setCancelReason] = useState("");
-
-  const cancelMutation = trpc.bookings.cancel.useMutation({
-    onSuccess: () => {
-      toast.success("Reserva cancelada com sucesso!");
-      refetch();
-    },
-    onError: (error) => toast.error(error.message),
-  });
+  const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
 
   const toggleExpand = (id: number) => {
     setExpanded(prev => {
@@ -318,22 +430,8 @@ export default function Bookings() {
     return bookings.filter((b) => (b as any).room?.id === Number(roomFilter));
   }, [bookings, roomFilter]);
 
-  // Compute cancellation eligibility for each booking
+  // Janela mínima de antecedência pra cancelamento - usada pelo modal de detalhe.
   const cancellationWindowMs = (policy?.cancellationWindowMinutes ?? 720) * 60 * 1000;
-
-  const getRefundInfo = (startTime: Date | string) => {
-    const now = Date.now();
-    const start = new Date(startTime).getTime();
-    const msUntil = start - now;
-    const windowMs = cancellationWindowMs;
-    if (msUntil <= 0) return { canCancel: false, label: "Reserva já iniciada" };
-    if (msUntil < windowMs) {
-      const hoursLeft = Math.floor(msUntil / 3600000);
-      const minWindow = Math.floor(windowMs / 3600000);
-      return { canCancel: false, label: `Cancelamento bloqueado (mín. ${minWindow}h de antecedência, faltam ${hoursLeft}h)` };
-    }
-    return { canCancel: true, label: null };
-  };
 
   return (
     <DashboardLayout>
@@ -419,22 +517,20 @@ export default function Bookings() {
               <span>Paciente</span>
               <span>Valor</span>
               <span>Status</span>
-              <span />
               <span className="text-right">Ações</span>
             </div>
             {filteredBookings.map((booking, idx) => {
               const st = STATUS_MAP[booking.status] ?? STATUS_MAP.draft;
               const isOpen = expanded.has(booking.id);
-              const { canCancel, label: blockLabel } = getRefundInfo(booking.startTime);
-              const canCancelStatus = booking.status === "pending_payment" || booking.status === "confirmed";
-
               const barColor = booking.status === "confirmed" ? "#5A8A6A" : booking.status === "completed" ? "#5B8DB8" : booking.status.startsWith("cancel") ? "#B85B5B" : "#A89050";
 
               return (
                 <div key={booking.id} className={idx > 0 ? "border-t border-[#D8D0C8]" : ""}>
-                  {/* Linha compacta - mesmo grid do cabeçalho */}
-                  <div className="grid gap-3 px-4 py-2.5 items-center text-sm min-w-[720px]"
-                    style={{ gridTemplateColumns: BOOKING_ROW_COLS }}>
+                  {/* Linha compacta - mesmo grid do cabeçalho. Clique na linha
+                      abre o detalhe (onde fica o botão Cancelar). */}
+                  <div className="grid gap-3 px-4 py-2.5 items-center text-sm min-w-[720px] cursor-pointer hover:bg-[#FAF8F5]"
+                    style={{ gridTemplateColumns: BOOKING_ROW_COLS }}
+                    onClick={() => setSelectedBooking(booking)}>
                     <div className="w-1 self-stretch rounded-full" style={{ backgroundColor: barColor }} />
 
                     <span className="font-medium text-[#3D3D2E] truncate flex items-center gap-1">
@@ -450,63 +546,13 @@ export default function Bookings() {
                       {st.icon}{st.label}
                     </Badge>
 
-                    {/* Atendimentos: coluna própria, sempre na mesma posição */}
+                    {/* Atendimentos: única ação na linha. stopPropagation pra não
+                        também abrir o modal de detalhe ao clicar nela. */}
                     <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 px-2 justify-self-end"
-                      onClick={() => toggleExpand(booking.id)}>
+                      onClick={(e) => { e.stopPropagation(); toggleExpand(booking.id); }}>
                       Atendimentos
                       {isOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                     </Button>
-
-                    {/* Cancelar: coluna própria também, sempre na mesma posição -
-                        vira botão, ícone de motivo (tooltip) ou nada, mas nunca
-                        empurra o "Atendimentos" ao lado. */}
-                    <div className="justify-self-end">
-                      {canCancelStatus && canCancel && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="outline" size="sm"
-                              className="h-7 text-xs text-red-600 bg-red-50 border-red-200 hover:bg-red-100 hover:text-red-700 px-2"
-                              disabled={cancelMutation.isPending}>
-                              <X className="h-3 w-3 mr-1" />
-                              Cancelar
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Cancelar reserva</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Tem certeza? Dependendo das regras de reembolso, um crédito pode ser gerado.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <div className="py-2">
-                              <Label className="text-sm">Motivo (opcional)</Label>
-                              <Input className="mt-1" placeholder="Ex: Paciente desmarcou" value={cancelReason}
-                                onChange={e => setCancelReason(e.target.value)} />
-                            </div>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Manter</AlertDialogCancel>
-                              <AlertDialogAction
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                onClick={() => cancelMutation.mutate({ id: booking.id, reason: cancelReason || undefined })}>
-                                Cancelar reserva
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      )}
-                      {canCancelStatus && !canCancel && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="inline-flex h-7 w-7 items-center justify-center text-orange-500 cursor-default">
-                              <AlertCircle className="h-4 w-4" />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p className="max-w-[220px]">{blockLabel}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      )}
-                    </div>
                   </div>
 
                   {/* Appointments panel */}
@@ -539,6 +585,13 @@ export default function Bookings() {
           </Card>
         )}
       </div>
+
+      <BookingDetailDialog
+        booking={selectedBooking}
+        onClose={() => setSelectedBooking(null)}
+        onRefresh={refetch}
+        cancellationWindowMs={cancellationWindowMs}
+      />
     </DashboardLayout>
   );
 }
