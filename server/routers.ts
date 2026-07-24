@@ -1166,17 +1166,31 @@ export const appRouter = router({
         return enrichedBookings;
       }),
 
-    todayBookings: receptionistProcedure
+    bookings: receptionistProcedure
       .input(z.object({
-        search: z.string().optional(),
+        mode: z.enum(['day', 'future', 'past']).default('day'),
         date: z.string().optional(),
+        roomId: z.number().optional(),
+        search: z.string().optional(),
       }))
       .query(async ({ ctx, input }) => {
         const tenantId = ctx.auth.tenantId!;
-        const dateStr = input.date ?? new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
-        const startOfDay = new Date(`${dateStr}T00:00:00-03:00`).getTime();
-        const endOfDay   = new Date(`${dateStr}T23:59:59-03:00`).getTime();
-        const rawBookings = await db.getReceptionBookings(tenantId, startOfDay, endOfDay);
+        const RANGE_DAYS = 180;
+        const now = Date.now();
+        let startMs: number;
+        let endMs: number;
+        if (input.mode === 'future') {
+          startMs = now;
+          endMs = now + RANGE_DAYS * 24 * 60 * 60 * 1000;
+        } else if (input.mode === 'past') {
+          startMs = now - RANGE_DAYS * 24 * 60 * 60 * 1000;
+          endMs = now;
+        } else {
+          const dateStr = input.date ?? new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+          startMs = new Date(`${dateStr}T00:00:00-03:00`).getTime();
+          endMs   = new Date(`${dateStr}T23:59:59-03:00`).getTime();
+        }
+        const rawBookings = await db.getReceptionBookings(tenantId, startMs, endMs, input.roomId);
         const enriched = await Promise.all(rawBookings.map(async (b) => {
           const room = await db.getRoomById(b.roomId);
           const prof = await db.getUserById(b.professionalId);
@@ -1186,11 +1200,13 @@ export const appRouter = router({
             endTime: b.endTime instanceof Date ? b.endTime.getTime() : Number(b.endTime),
             status: b.status as string,
             receptionNotes: b.receptionNotes as string | null,
+            roomId: b.roomId,
             roomName: room?.name ?? '—',
             professionalId: b.professionalId,
             professionalName: prof?.name ?? '—',
             professionalSpecialty: prof?.specialty ?? null,
-            patientName: decrypt(b.patientName) ?? b.patientName as string | null,
+            patientName: b.patientName ? (decrypt(b.patientName) ?? '(dados indisponíveis)') : null,
+            patientPhone: b.patientPhone ? (decrypt(b.patientPhone) ?? null) : null,
           };
         }));
         if (input.search) {
@@ -1322,7 +1338,11 @@ export const appRouter = router({
         const isFinancialOnly = ctx.auth.role === 'financial';
         return rows.map((b: any) => ({
           ...b,
-          patientName: isFinancialOnly ? '(dado restrito)' : (decrypt(b.patientName) ?? b.patientName),
+          patientName: isFinancialOnly
+            ? '(dado restrito)'
+            : b.patientName
+              ? (decrypt(b.patientName) ?? '(dados indisponíveis)')
+              : null,
           patientPhone: isFinancialOnly ? null : decrypt(b.patientPhone),
           privateNotes: isFinancialOnly ? null : decrypt(b.privateNotes),
           professionalName: b.professionalName || `Profissional #${b.professionalId}`,
