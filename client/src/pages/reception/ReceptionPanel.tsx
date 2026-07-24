@@ -5,7 +5,16 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Search, CalendarDays, Clock, MapPin, User, ChevronLeft, ChevronRight, CheckCircle2, AlertCircle, XCircle, HelpCircle, X } from "lucide-react";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Search, CalendarDays, Clock, MapPin, User, Phone, FileText, ChevronLeft, ChevronRight,
+  CheckCircle2, AlertCircle, XCircle, HelpCircle, X, Building2,
+} from "lucide-react";
 
 // Remove acentos para busca mais tolerante (ex: "goncalves" encontra "Gonçalves")
 function normalize(str: string) {
@@ -24,33 +33,130 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   canceled_with_credit:   { label: "Cancelada",      color: "bg-gray-100 text-gray-500",     icon: <XCircle className="h-3.5 w-3.5" /> },
 };
 
+type Mode = "day" | "future" | "past";
+const MODE_LABEL: Record<Mode, string> = {
+  day: "Data específica",
+  future: "Futuras",
+  past: "Passadas",
+};
+
 function formatTime(ts: number) {
   return new Date(ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
-function formatDate(d: Date) {
-  return d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+function formatDateShort(ts: number) {
+  return new Date(ts).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+}
+
+function formatDateFull(ts: number) {
+  return new Date(ts).toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
 }
 
 function toDateStr(d: Date) {
   return d.toLocaleDateString("sv-SE"); // YYYY-MM-DD
 }
 
+type Booking = {
+  id: number;
+  startTime: number;
+  endTime: number;
+  status: string;
+  receptionNotes: string | null;
+  roomId: number;
+  roomName: string;
+  professionalId: number;
+  professionalName: string;
+  professionalSpecialty: string | null;
+  patientName: string | null;
+  patientPhone: string | null;
+};
+
+function BookingDetailDialog({ booking, onClose }: { booking: Booking | null; onClose: () => void }) {
+  if (!booking) return null;
+  const cfg = STATUS_CONFIG[booking.status] ?? { label: booking.status, color: "bg-gray-100 text-gray-600", icon: null };
+
+  return (
+    <Dialog open={!!booking} onOpenChange={onClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <span>Reserva #{booking.id}</span>
+            <Badge className={`text-xs flex items-center gap-1 ${cfg.color}`}>{cfg.icon}{cfg.label}</Badge>
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3 text-sm">
+          <div className="flex items-start gap-2">
+            <MapPin className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+            <p className="font-medium text-gray-900">{booking.roomName}</p>
+          </div>
+          <div className="flex items-start gap-2">
+            <User className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+            <div>
+              <p className="font-medium text-gray-900">{booking.professionalName}</p>
+              {booking.professionalSpecialty && (
+                <p className="text-xs text-muted-foreground">{booking.professionalSpecialty}</p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-start gap-2">
+            <CalendarDays className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+            <div>
+              <p className="font-medium text-gray-900 capitalize">{formatDateFull(booking.startTime)}</p>
+              <p className="text-muted-foreground">{formatTime(booking.startTime)} – {formatTime(booking.endTime)}</p>
+            </div>
+          </div>
+          {booking.patientName && (
+            <div className="flex items-start gap-2">
+              <User className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+              <div>
+                <p className="text-xs text-muted-foreground">Paciente</p>
+                <p className="font-medium text-gray-900">{booking.patientName}</p>
+              </div>
+            </div>
+          )}
+          {booking.patientPhone && (
+            <div className="flex items-start gap-2">
+              <Phone className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+              <p className="text-gray-700">{booking.patientPhone}</p>
+            </div>
+          )}
+          {booking.receptionNotes && (
+            <div className="flex items-start gap-2">
+              <FileText className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+              <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1 flex-1">{booking.receptionNotes}</p>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" size="sm" onClick={onClose}>Fechar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function ReceptionPanel() {
   const [search, setSearch] = useState("");
+  const [mode, setMode] = useState<Mode>("day");
   const [selectedDate, setSelectedDate] = useState(() => new Date());
+  const [roomFilter, setRoomFilter] = useState<string>("all");
   const [selectedProfessional, setSelectedProfessional] = useState<{ id: number; name: string } | null>(null);
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchBoxRef = useRef<HTMLDivElement>(null);
 
   const dateStr = toDateStr(selectedDate);
+  const roomIdFilter = roomFilter === "all" ? undefined : Number(roomFilter);
 
-  const { data: bookings = [], isLoading } = trpc.reception.todayBookings.useQuery(
-    { date: dateStr },
+  const { data: bookings = [], isLoading } = trpc.reception.bookings.useQuery(
+    { mode, date: mode === "day" ? dateStr : undefined, roomId: roomIdFilter },
     { refetchInterval: 30_000 }
   );
 
   const { data: professionals = [] } = trpc.reception.professionals.useQuery();
+  const { data: rooms = [] } = trpc.rooms.list.useQuery({ includeInactive: false });
 
   // Sugestões de profissionais cadastrados que batem com o texto digitado
   // (busca por substring, sem diferenciar maiúsculas/minúsculas ou acentos —
@@ -99,6 +205,18 @@ export default function ReceptionPanel() {
     );
   }, [bookings, search, selectedProfessional]);
 
+  // Agrupa as reservas filtradas por sala, ordenadas por nome da sala;
+  // dentro de cada sala, ordenadas cronologicamente.
+  const groupedByRoom = useMemo(() => {
+    const groups = new Map<number, { roomName: string; items: Booking[] }>();
+    for (const b of filtered) {
+      if (!groups.has(b.roomId)) groups.set(b.roomId, { roomName: b.roomName, items: [] });
+      groups.get(b.roomId)!.items.push(b);
+    }
+    groups.forEach((g) => g.items.sort((a, b) => a.startTime - b.startTime));
+    return Array.from(groups.values()).sort((a, b) => a.roomName.localeCompare(b.roomName, "pt-BR"));
+  }, [filtered]);
+
   function prevDay() {
     setSelectedDate((d) => { const n = new Date(d); n.setDate(n.getDate() - 1); return n; });
   }
@@ -109,41 +227,73 @@ export default function ReceptionPanel() {
     setSelectedDate(new Date());
   }
 
-  const isToday = toDateStr(selectedDate) === toDateStr(new Date());
+  const isToday = mode === "day" && toDateStr(selectedDate) === toDateStr(new Date());
+  // Datas diferentes só importam visualmente quando o intervalo cobre vários dias
+  const showDateOnRows = mode !== "day";
 
   return (
     <DashboardLayout>
       <div className="p-6 space-y-6 max-w-4xl">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <CalendarDays className="h-6 w-6 text-[#7C5C4A]" />
-              Painel de Recepção
-            </h1>
-            <p className="text-gray-500 mt-1 text-sm">Consulte as reservas do dia e oriente os pacientes.</p>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <CalendarDays className="h-6 w-6 text-[#7C5C4A]" />
+            Painel de Recepção
+          </h1>
+          <p className="text-gray-500 mt-1 text-sm">Relatório de reservas por sala, com filtros de período e sala.</p>
+        </div>
+
+        {/* Filtros: modo (dia/futuras/passadas) + sala */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+            {(["day", "future", "past"] as Mode[]).map((m) => (
+              <Button
+                key={m}
+                type="button"
+                size="sm"
+                variant={mode === m ? "default" : "ghost"}
+                className={`h-8 text-xs px-3 ${mode === m ? "bg-[#7C5C4A] hover:bg-[#6B4E3E] text-white" : "text-gray-600"}`}
+                onClick={() => setMode(m)}
+              >
+                {m === "day" ? "Hoje / data" : MODE_LABEL[m]}
+              </Button>
+            ))}
           </div>
 
-          {/* Date navigator */}
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={prevDay} className="h-9 w-9 p-0">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <div className="text-center min-w-[160px]">
-              <p className="text-sm font-semibold text-gray-800 capitalize">
-                {isToday ? "Hoje" : selectedDate.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short" })}
-              </p>
-              <p className="text-xs text-gray-400">{selectedDate.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}</p>
-            </div>
-            <Button variant="outline" size="sm" onClick={nextDay} className="h-9 w-9 p-0">
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            {!isToday && (
-              <Button variant="outline" size="sm" onClick={goToday} className="text-xs h-9 px-3">
-                Hoje
+          {mode === "day" && (
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={prevDay} className="h-9 w-9 p-0">
+                <ChevronLeft className="h-4 w-4" />
               </Button>
-            )}
-          </div>
+              <div className="text-center min-w-[150px]">
+                <p className="text-sm font-semibold text-gray-800 capitalize">
+                  {isToday ? "Hoje" : selectedDate.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short" })}
+                </p>
+                <p className="text-xs text-gray-400">{selectedDate.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={nextDay} className="h-9 w-9 p-0">
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              {!isToday && (
+                <Button variant="outline" size="sm" onClick={goToday} className="text-xs h-9 px-3">
+                  Hoje
+                </Button>
+              )}
+            </div>
+          )}
+
+          <Select value={roomFilter} onValueChange={setRoomFilter}>
+            <SelectTrigger className="h-9 w-full sm:w-[200px]">
+              <Building2 className="h-4 w-4 text-gray-400 mr-1" />
+              <SelectValue placeholder="Todas as salas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as salas</SelectItem>
+              {rooms.map((r) => (
+                <SelectItem key={r.id} value={String(r.id)}>{r.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Search + autocomplete de profissional cadastrado */}
@@ -196,23 +346,23 @@ export default function ReceptionPanel() {
           <span className="ml-auto text-xs">Atualiza a cada 30s</span>
         </div>
 
-        {/* Booking list */}
+        {/* Booking list, agrupada por sala */}
         {isLoading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
               <div key={i} className="h-24 bg-gray-100 rounded-xl animate-pulse" />
             ))}
           </div>
-        ) : filtered.length === 0 ? (
+        ) : groupedByRoom.length === 0 ? (
           <Card>
             <CardContent className="py-16 text-center text-gray-400">
               <CalendarDays className="h-12 w-12 mx-auto mb-3 opacity-30" />
               <p className="font-medium text-gray-500">
                 {selectedProfessional
-                  ? `Nenhuma reserva de ${selectedProfessional.name} neste dia`
+                  ? `Nenhuma reserva de ${selectedProfessional.name} neste filtro`
                   : search
                   ? "Nenhuma reserva encontrada para esta busca"
-                  : "Nenhuma reserva para este dia"}
+                  : "Nenhuma reserva encontrada para este filtro"}
               </p>
               {(search || selectedProfessional) && (
                 <Button variant="ghost" size="sm" onClick={clearProfessionalFilter} className="mt-2 text-[#7C5C4A]">
@@ -222,69 +372,79 @@ export default function ReceptionPanel() {
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-3">
-            {filtered
-              .slice()
-              .sort((a, b) => a.startTime - b.startTime)
-              .map((b) => {
-                const cfg = STATUS_CONFIG[b.status] ?? { label: b.status, color: "bg-gray-100 text-gray-600", icon: null };
-                const isPast = b.endTime < Date.now() && isToday;
-                return (
-                  <Card
-                    key={b.id}
-                    className={`border transition-all ${isPast ? "opacity-60" : "hover:shadow-md"}`}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                        {/* Time block */}
-                        <div className="flex-shrink-0 w-24 text-center bg-[#EDE8E3] rounded-lg py-2 px-3">
-                          <p className="text-lg font-bold text-[#7C5C4A]">{formatTime(b.startTime)}</p>
-                          <p className="text-xs text-[#9B7B6A]">{formatTime(b.endTime)}</p>
-                        </div>
+          <div className="space-y-6">
+            {groupedByRoom.map((group) => (
+              <div key={group.roomName} className="space-y-2">
+                <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                  <Building2 className="h-4 w-4 text-[#7C5C4A]" />
+                  {group.roomName}
+                  <span className="text-xs font-normal text-gray-400">({group.items.length})</span>
+                </div>
+                <div className="space-y-2">
+                  {group.items.map((b) => {
+                    const cfg = STATUS_CONFIG[b.status] ?? { label: b.status, color: "bg-gray-100 text-gray-600", icon: null };
+                    const isPast = b.endTime < Date.now();
+                    return (
+                      <Card
+                        key={b.id}
+                        className={`border transition-all cursor-pointer hover:shadow-md ${isPast && mode === "day" ? "opacity-60" : ""}`}
+                        onClick={() => setSelectedBooking(b)}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                            {/* Time block */}
+                            <div className="flex-shrink-0 w-24 text-center bg-[#EDE8E3] rounded-lg py-2 px-3">
+                              {showDateOnRows && (
+                                <p className="text-[10px] font-semibold text-[#9B7B6A] uppercase">{formatDateShort(b.startTime)}</p>
+                              )}
+                              <p className="text-lg font-bold text-[#7C5C4A]">{formatTime(b.startTime)}</p>
+                              <p className="text-xs text-[#9B7B6A]">{formatTime(b.endTime)}</p>
+                            </div>
 
-                        {/* Main info */}
-                        <div className="flex-1 min-w-0 space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-semibold text-gray-900">{b.professionalName}</span>
-                            {b.professionalSpecialty && (
-                              <span className="text-xs text-gray-500">· {b.professionalSpecialty}</span>
-                            )}
-                            <Badge className={`text-xs flex items-center gap-1 ${cfg.color}`}>
-                              {cfg.icon}{cfg.label}
-                            </Badge>
+                            {/* Main info */}
+                            <div className="flex-1 min-w-0 space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-semibold text-gray-900">{b.professionalName}</span>
+                                {b.professionalSpecialty && (
+                                  <span className="text-xs text-gray-500">· {b.professionalSpecialty}</span>
+                                )}
+                                <Badge className={`text-xs flex items-center gap-1 ${cfg.color}`}>
+                                  {cfg.icon}{cfg.label}
+                                </Badge>
+                              </div>
+
+                              <div className="flex flex-wrap gap-3 text-sm text-gray-600">
+                                {b.patientName && (
+                                  <span className="flex items-center gap-1">
+                                    <User className="h-3.5 w-3.5 text-gray-400" />
+                                    {b.patientName}
+                                  </span>
+                                )}
+                                <span className="flex items-center gap-1 text-gray-400">
+                                  <Clock className="h-3.5 w-3.5" />
+                                  {Math.round((b.endTime - b.startTime) / 60000)} min
+                                </span>
+                              </div>
+
+                              {b.receptionNotes && (
+                                <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1 mt-1">
+                                  📌 {b.receptionNotes}
+                                </p>
+                              )}
+                            </div>
                           </div>
-
-                          <div className="flex flex-wrap gap-3 text-sm text-gray-600">
-                            <span className="flex items-center gap-1">
-                              <MapPin className="h-3.5 w-3.5 text-gray-400" />
-                              {b.roomName}
-                            </span>
-                            {b.patientName && (
-                              <span className="flex items-center gap-1">
-                                <User className="h-3.5 w-3.5 text-gray-400" />
-                                {b.patientName}
-                              </span>
-                            )}
-                            <span className="flex items-center gap-1 text-gray-400">
-                              <Clock className="h-3.5 w-3.5" />
-                              {Math.round((b.endTime - b.startTime) / 60000)} min
-                            </span>
-                          </div>
-
-                          {b.receptionNotes && (
-                            <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1 mt-1">
-                              📌 {b.receptionNotes}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
+
+      <BookingDetailDialog booking={selectedBooking} onClose={() => setSelectedBooking(null)} />
     </DashboardLayout>
   );
 }

@@ -1276,7 +1276,7 @@ export async function deleteStaffUser(id: number, tenantId: number) {
 
 // ============= RECEPTION =============
 
-export async function getReceptionBookings(tenantId: number, startMs: number, endMs: number) {
+export async function getReceptionBookings(tenantId: number, startMs: number, endMs: number, roomId?: number) {
   const db = await getDb();
   if (!db) return [];
   // BUG CORRIGIDO: a condicao anterior comparava a coluna (enum booking_status)
@@ -1288,6 +1288,12 @@ export async function getReceptionBookings(tenantId: number, startMs: number, en
   // "Cancelada" normalmente (ha badge propria para canceled_with_credit),
   // entao aqui simplesmente listamos todas as reservas do dia, sem excluir
   // nenhum status - igual ao padrao ja usado em admin.listAllBookings.
+  const conditions = [
+    eq(bookings.tenantId, tenantId),
+    gte(bookings.startTime, new Date(startMs)),
+    lte(bookings.startTime, new Date(endMs)),
+  ];
+  if (roomId) conditions.push(eq(bookings.roomId, roomId));
   return db.select({
     id: bookings.id,
     startTime: bookings.startTime,
@@ -1297,12 +1303,9 @@ export async function getReceptionBookings(tenantId: number, startMs: number, en
     roomId: bookings.roomId,
     professionalId: bookings.professionalId,
     patientName: bookings.patientName,
+    patientPhone: bookings.patientPhone,
   })
   .from(bookings)
-  .where(and(
-    eq(bookings.tenantId, tenantId),
-    gte(bookings.startTime, new Date(startMs)),
-    lte(bookings.startTime, new Date(endMs))
-  ))
+  .where(and(...conditions))
   .orderBy(bookings.startTime);
 }
