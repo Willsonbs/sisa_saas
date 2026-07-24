@@ -356,6 +356,13 @@ export default function Rooms() {
     }
     const start = new Date(currentDate);
     start.setHours(hour, 0, 0, 0);
+    // Se o slot clicado já está em andamento (é hoje e a hora cheia já
+    // passou, mas o fim do slot ainda não - por isso não caiu em "past"),
+    // usa o horário atual como início em vez de "hora:00" do passado.
+    const now = new Date();
+    if (isSameDay(currentDate, now) && start < now) {
+      start.setTime(now.getTime());
+    }
     const end = new Date(currentDate);
     end.setHours(hour + 1, 0, 0, 0);
     navigate(`/rooms/${roomId}/book?start=${start.toISOString()}&end=${end.toISOString()}`);
