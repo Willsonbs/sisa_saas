@@ -1174,28 +1174,18 @@ export const appRouter = router({
 
     bookings: receptionistProcedure
       .input(z.object({
-        mode: z.enum(['day', 'future', 'past']).default('day'),
-        date: z.string().optional(),
+        dateFrom: z.string().optional(),
+        dateTo: z.string().optional(),
         roomId: z.number().optional(),
         search: z.string().optional(),
       }))
       .query(async ({ ctx, input }) => {
         const tenantId = ctx.auth.tenantId!;
-        const RANGE_DAYS = 180;
-        const now = Date.now();
-        let startMs: number;
-        let endMs: number;
-        if (input.mode === 'future') {
-          startMs = now;
-          endMs = now + RANGE_DAYS * 24 * 60 * 60 * 1000;
-        } else if (input.mode === 'past') {
-          startMs = now - RANGE_DAYS * 24 * 60 * 60 * 1000;
-          endMs = now;
-        } else {
-          const dateStr = input.date ?? new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
-          startMs = new Date(`${dateStr}T00:00:00-03:00`).getTime();
-          endMs   = new Date(`${dateStr}T23:59:59-03:00`).getTime();
-        }
+        const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+        const dateFrom = input.dateFrom ?? todayStr;
+        const dateTo = input.dateTo ?? dateFrom;
+        const startMs = new Date(`${dateFrom}T00:00:00-03:00`).getTime();
+        const endMs   = new Date(`${dateTo}T23:59:59-03:00`).getTime();
         const rawBookings = await db.getReceptionBookings(tenantId, startMs, endMs, input.roomId);
         const enriched = await Promise.all(rawBookings.map(async (b) => {
           const room = await db.getRoomById(b.roomId);
