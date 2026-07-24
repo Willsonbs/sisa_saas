@@ -581,21 +581,22 @@ export async function getBookingById(id: number, tenantId?: number) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-export async function getBookingsByProfessional(professionalId: number, status?: string) {
+export async function getBookingsByProfessional(
+  professionalId: number,
+  status?: string,
+  startMs?: number,
+  endMs?: number
+) {
   const db = await getDb();
   if (!db) return [];
-  
-  if (status) {
-    return db.select().from(bookings)
-      .where(and(
-        eq(bookings.professionalId, professionalId),
-        eq(bookings.status, status as any)
-      ))
-      .orderBy(desc(bookings.startTime));
-  }
-  
+
+  const conditions = [eq(bookings.professionalId, professionalId)];
+  if (status) conditions.push(eq(bookings.status, status as any));
+  if (startMs !== undefined) conditions.push(gte(bookings.startTime, new Date(startMs)));
+  if (endMs !== undefined) conditions.push(lte(bookings.startTime, new Date(endMs)));
+
   return db.select().from(bookings)
-    .where(eq(bookings.professionalId, professionalId))
+    .where(and(...conditions))
     .orderBy(desc(bookings.startTime));
 }
 
@@ -715,7 +716,7 @@ export async function getReceptionAgenda(date: Date, tenantId?: number) {
 export async function getBookingsNeedingReminders(windowStart: Date, windowEnd: Date) {
   const db = await getDb();
   if (!db) return [];
-  
+
   return db.select().from(bookings)
     .where(and(
       eq(bookings.status, 'confirmed'),
@@ -723,6 +724,20 @@ export async function getBookingsNeedingReminders(windowStart: Date, windowEnd: 
       lte(bookings.startTime, windowEnd)
     ))
     .orderBy(bookings.startTime);
+}
+
+// Reservas confirmadas cujo horário já terminou - usado pelo job de
+// auto-conclusão (bookingCompletionService) para virar o status sozinho.
+export async function getConfirmedBookingsPastEndTime(now: Date) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select().from(bookings)
+    .where(and(
+      eq(bookings.status, 'confirmed'),
+      lte(bookings.endTime, now)
+    ))
+    .orderBy(bookings.endTime);
 }
 
 // ============= CREDITS =============

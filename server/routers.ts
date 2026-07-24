@@ -525,9 +525,15 @@ export const appRouter = router({
 
   bookings: router({
     list: professionalProcedure
-      .input(z.object({ status: z.string().optional() }).optional())
+      .input(z.object({ status: z.string().optional(), date: z.string().optional() }).optional())
       .query(async ({ ctx, input }) => {
-        const bookings = await db.getBookingsByProfessional(ctx.auth.id, input?.status);
+        let startMs: number | undefined;
+        let endMs: number | undefined;
+        if (input?.date) {
+          startMs = new Date(`${input.date}T00:00:00-03:00`).getTime();
+          endMs = new Date(`${input.date}T23:59:59-03:00`).getTime();
+        }
+        const bookings = await db.getBookingsByProfessional(ctx.auth.id, input?.status, startMs, endMs);
         
         const enrichedBookings = await Promise.all(
           bookings.map(async (booking) => {
@@ -535,7 +541,7 @@ export const appRouter = router({
             return {
               ...booking,
               // Descriptografa dados sensíveis (LGPD)
-              patientName: decrypt(booking.patientName) ?? booking.patientName,
+              patientName: booking.patientName ? (decrypt(booking.patientName) ?? '(dados indisponíveis)') : null,
               patientPhone: decrypt(booking.patientPhone),
               privateNotes: decrypt(booking.privateNotes),
               room,
@@ -576,7 +582,7 @@ export const appRouter = router({
         // Descriptografa dados sensíveis antes de retornar
         return {
           ...booking,
-          patientName: decrypt(booking.patientName) ?? booking.patientName,
+          patientName: booking.patientName ? (decrypt(booking.patientName) ?? '(dados indisponíveis)') : null,
           patientPhone: decrypt(booking.patientPhone),
           privateNotes: decrypt(booking.privateNotes),
         };
@@ -1829,7 +1835,7 @@ export const appRouter = router({
         const appts = await db.getAppointmentsByBooking(input.bookingId);
         return appts.map(a => ({
           ...a,
-          patientName: decrypt(a.patientName) ?? a.patientName,
+          patientName: a.patientName ? (decrypt(a.patientName) ?? '(dados indisponíveis)') : null,
           patientPhone: decrypt(a.patientPhone),
         }));
       }),

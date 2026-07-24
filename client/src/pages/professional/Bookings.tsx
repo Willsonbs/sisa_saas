@@ -267,7 +267,8 @@ function AppointmentsPanel({ bookingId, bookingStart, bookingEnd }: {
 
 // ─── Main page ───────────────────────────────────────────────────────────────
 export default function Bookings() {
-  const { data: bookings, isLoading, refetch } = trpc.bookings.list.useQuery();
+  const [dateFilter, setDateFilter] = useState("");
+  const { data: bookings, isLoading, refetch } = trpc.bookings.list.useQuery({ date: dateFilter || undefined });
   const { data: policy } = trpc.bookingPolicy.get.useQuery();
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [cancelReason, setCancelReason] = useState("");
@@ -336,120 +337,136 @@ export default function Bookings() {
           </div>
         )}
 
+        {/* Filtro de data */}
+        <div className="flex items-center gap-2">
+          <Label htmlFor="date-filter" className="text-sm text-muted-foreground flex items-center gap-1.5 shrink-0">
+            <Calendar className="h-3.5 w-3.5" />
+            Filtrar por data
+          </Label>
+          <Input
+            id="date-filter"
+            type="date"
+            className="h-8 w-auto text-sm"
+            value={dateFilter}
+            onChange={e => setDateFilter(e.target.value)}
+          />
+          {dateFilter && (
+            <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setDateFilter("")}>
+              Limpar
+            </Button>
+          )}
+        </div>
+
         {/* Bookings list */}
         {isLoading ? (
-          <div className="space-y-4">
-            {[1, 2, 3].map(i => <div key={i} className="h-32 bg-muted animate-pulse rounded-lg" />)}
+          <div className="space-y-2">
+            {[1, 2, 3].map(i => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
           </div>
         ) : bookings && bookings.length > 0 ? (
-          <div className="space-y-3">
-            {bookings.map(booking => {
+          <div className="border border-[#D8D0C8] rounded-lg overflow-hidden">
+            {/* Cabeçalho, só em telas maiores */}
+            <div className="hidden sm:grid gap-3 px-4 py-2 text-xs font-semibold text-muted-foreground bg-[#F5F3EF] border-b border-[#D8D0C8]"
+              style={{ gridTemplateColumns: "1fr 1.6fr 1fr 1fr 1fr 1fr auto" }}>
+              <span>Sala</span>
+              <span>Data / Horário</span>
+              <span>Paciente</span>
+              <span>Valor</span>
+              <span>Status</span>
+              <span>Cancelamento</span>
+              <span className="text-right">Ações</span>
+            </div>
+            {bookings.map((booking, idx) => {
               const st = STATUS_MAP[booking.status] ?? STATUS_MAP.draft;
               const isOpen = expanded.has(booking.id);
               const { canCancel, label: blockLabel } = getRefundInfo(booking.startTime);
               const canCancelStatus = booking.status === "pending_payment" || booking.status === "confirmed";
 
+              const barColor = booking.status === "confirmed" ? "#5A8A6A" : booking.status === "completed" ? "#5B8DB8" : booking.status.startsWith("cancel") ? "#B85B5B" : "#A89050";
+
               return (
-                <Card key={booking.id} className="overflow-hidden border border-[#D8D0C8]">
-                  <CardContent className="p-0">
-                    {/* Main row */}
-                    <div className="flex items-start gap-4 p-5">
-                      {/* Color bar */}
-                      <div className="w-1 self-stretch rounded-full shrink-0"
-                        style={{ backgroundColor: booking.status === "confirmed" ? "#5A8A6A" : booking.status === "completed" ? "#5B8DB8" : booking.status.startsWith("cancel") ? "#B85B5B" : "#A89050" }} />
+                <div key={booking.id} className={idx > 0 ? "border-t border-[#D8D0C8]" : ""}>
+                  {/* Linha compacta */}
+                  <div className="flex items-center gap-3 px-4 py-2.5">
+                    <div className="w-1 self-stretch rounded-full shrink-0" style={{ backgroundColor: barColor }} />
 
-                      <div className="flex-1 min-w-0">
-                        {/* Room + status */}
-                        <div className="flex items-center gap-2 mb-2 flex-wrap">
-                          <span className="font-semibold text-[#3D3D2E]">{(booking as any).room?.name || "Sala"}</span>
-                          <Badge className={`text-xs flex items-center gap-1 ${st.className}`}>
-                            {st.icon}{st.label}
-                          </Badge>
-                        </div>
-
-                        {/* Date + time + price */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                          <div>
-                            <p className="text-xs text-muted-foreground flex items-center gap-1"><Calendar className="h-3 w-3" />Data</p>
-                            <p className="font-medium text-[#3D3D2E]">{fmtDate(booking.startTime)}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground flex items-center gap-1"><Clock className="h-3 w-3" />Horário</p>
-                            <p className="font-medium text-[#3D3D2E]">{fmt(booking.startTime)} – {fmt(booking.endTime)}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Valor</p>
-                            <p className="font-medium text-[#3D3D2E]">{formatCurrency(booking.totalPrice)}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Paciente</p>
-                            <p className="font-medium text-[#3D3D2E] truncate">{(booking as any).patientName || "—"}</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex flex-col items-end gap-2 shrink-0">
-                        <Button variant="ghost" size="sm" className="h-7 text-xs gap-1"
-                          onClick={() => toggleExpand(booking.id)}>
-                          Atendimentos
-                          {isOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                        </Button>
-
-                        {canCancelStatus && (
-                          canCancel ? (
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="outline" size="sm"
-                                  className="h-7 text-xs text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                                  disabled={cancelMutation.isPending}>
-                                  <X className="h-3 w-3 mr-1" />Cancelar
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Cancelar reserva</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Tem certeza? Dependendo das regras de reembolso, um crédito pode ser gerado.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <div className="py-2">
-                                  <Label className="text-sm">Motivo (opcional)</Label>
-                                  <Input className="mt-1" placeholder="Ex: Paciente desmarcou" value={cancelReason}
-                                    onChange={e => setCancelReason(e.target.value)} />
-                                </div>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Manter</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                    onClick={() => cancelMutation.mutate({ id: booking.id, reason: cancelReason || undefined })}>
-                                    Cancelar reserva
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          ) : (
-                            <div className="text-xs text-muted-foreground text-right max-w-[160px] leading-tight">
-                              <AlertCircle className="h-3 w-3 inline mr-1 text-orange-500" />
-                              {blockLabel}
-                            </div>
-                          )
+                    <div className="flex-1 min-w-0 grid grid-cols-2 sm:grid gap-x-3 gap-y-1 items-center text-sm"
+                      style={{ gridTemplateColumns: "1fr 1.6fr 1fr 1fr 1fr 1fr" }}>
+                      <span className="font-medium text-[#3D3D2E] truncate flex items-center gap-1">
+                        <MapPin className="h-3 w-3 text-muted-foreground shrink-0 sm:hidden" />
+                        {(booking as any).room?.name || "Sala"}
+                      </span>
+                      <span className="text-[#3D3D2E]">
+                        {fmtDate(booking.startTime)} · {fmt(booking.startTime)}–{fmt(booking.endTime)}
+                      </span>
+                      <span className="text-[#3D3D2E] truncate">{(booking as any).patientName || "—"}</span>
+                      <span className="text-[#3D3D2E]">{formatCurrency(booking.totalPrice)}</span>
+                      <Badge className={`text-xs flex items-center gap-1 w-fit ${st.className}`}>
+                        {st.icon}{st.label}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground leading-tight">
+                        {canCancelStatus && !canCancel && (
+                          <span className="flex items-center gap-1 text-orange-600">
+                            <AlertCircle className="h-3 w-3 shrink-0" />
+                            {blockLabel}
+                          </span>
                         )}
-                      </div>
+                      </span>
                     </div>
 
-                    {/* Appointments panel */}
-                    {isOpen && (
-                      <div className="px-5 pb-5">
-                        <AppointmentsPanel
-                          bookingId={booking.id}
-                          bookingStart={new Date(booking.startTime)}
-                          bookingEnd={new Date(booking.endTime)}
-                        />
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                    {/* Actions */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 px-2"
+                        onClick={() => toggleExpand(booking.id)}>
+                        Atendimentos
+                        {isOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                      </Button>
+
+                      {canCancelStatus && canCancel && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="outline" size="sm"
+                              className="h-7 text-xs text-destructive hover:bg-destructive hover:text-destructive-foreground px-2"
+                              disabled={cancelMutation.isPending}>
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Cancelar reserva</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Tem certeza? Dependendo das regras de reembolso, um crédito pode ser gerado.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <div className="py-2">
+                              <Label className="text-sm">Motivo (opcional)</Label>
+                              <Input className="mt-1" placeholder="Ex: Paciente desmarcou" value={cancelReason}
+                                onChange={e => setCancelReason(e.target.value)} />
+                            </div>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Manter</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                onClick={() => cancelMutation.mutate({ id: booking.id, reason: cancelReason || undefined })}>
+                                Cancelar reserva
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Appointments panel */}
+                  {isOpen && (
+                    <div className="px-4 pb-4">
+                      <AppointmentsPanel
+                        bookingId={booking.id}
+                        bookingStart={new Date(booking.startTime)}
+                        bookingEnd={new Date(booking.endTime)}
+                      />
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
