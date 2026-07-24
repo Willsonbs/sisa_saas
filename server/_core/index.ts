@@ -9,6 +9,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { startReminderInterval } from "../reminderService";
+import { startBookingCompletionInterval } from "../bookingCompletionService";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -173,6 +174,8 @@ async function startServer() {
 
   // Start reminder service
   startReminderInterval();
+  // Auto-completar reservas confirmadas cujo horário já passou
+  startBookingCompletionInterval();
 }
 
 startServer().catch(console.error);
