@@ -265,7 +265,7 @@ export const appRouter = router({
         const cookieOptions = getSessionCookieOptions(ctx.req);
         ctx.res.cookie('auth_token', token, {
           ...cookieOptions,
-          maxAge: 7 * 24 * 60 * 60 * 1000, // 7 dias
+          maxAge: 3 * 60 * 60 * 1000, // 3 horas
         });
         
         return { 
