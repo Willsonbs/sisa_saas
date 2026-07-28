@@ -25,7 +25,7 @@ export async function generateToken(userId: number, email: string, role: string)
   const token = await new SignJWT({ userId, email, role })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('7d')
+    .setExpirationTime('8h')
     .sign(JWT_SECRET);
   
   return token;

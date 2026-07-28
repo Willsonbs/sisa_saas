@@ -20,6 +20,8 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/useMobile";
+import { useIdleTimeout } from "@/hooks/useIdleTimeout";
+import { toast } from "sonner";
 import {
   LayoutDashboard, LogOut, PanelLeft, Users, Calendar, CalendarDays,
   CreditCard, Building2, Settings, Lock, Shield, ClipboardList,
@@ -80,6 +82,7 @@ const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 260;
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 400;
+const IDLE_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutos sem atividade
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarWidth, setSidebarWidth] = useState(() => {
@@ -143,6 +146,12 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
   const menuItems = getMenuItems(user?.role || 'user', user);
   const activeMenuItem = menuItems.find((item: any) => item.path === location);
   const isMobile = useIsMobile();
+
+  // Logout automático por inatividade (60min sem mouse/teclado/toque/scroll).
+  useIdleTimeout(IDLE_TIMEOUT_MS, () => {
+    toast.info("Sessão encerrada por inatividade.");
+    logout();
+  }, !!user);
 
   useEffect(() => {
     if (isCollapsed) setIsResizing(false);
