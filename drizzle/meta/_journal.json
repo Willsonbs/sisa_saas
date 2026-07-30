@@ -29,6 +29,13 @@
       "when": 1785257510252,
       "tag": "0003_enable_rls_all_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785412082535,
+      "tag": "0004_add_terms_acceptance",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -61,12 +62,14 @@ export default function Home() {
     registryType: "CRP" as "CRP" | "CRM" | "CRO" | "CREFITO" | "COREN" | "Outro",
     cpf: "",
   });
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const registerMutation = trpc.auth.register.useMutation({
     onSuccess: (data) => {
       toast.success(data.message);
       setShowRegisterForm(false);
       setFormData({ name: "", email: "", password: "", phone: "", professionalRegistry: "", registryType: "CRP", cpf: "" });
+      setTermsAccepted(false);
       setTimeout(() => setLocation('/login'), 2000);
     },
     onError: (error) => toast.error(error.message),
@@ -74,7 +77,11 @@ export default function Home() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    registerMutation.mutate(formData);
+    if (!termsAccepted) {
+      toast.error("É necessário aceitar os Termos de Uso e a Política de Privacidade");
+      return;
+    }
+    registerMutation.mutate({ ...formData, termsAccepted: true });
   };
 
   useEffect(() => {
@@ -219,8 +226,26 @@ export default function Home() {
                     <Label htmlFor="cpf">CPF (opcional)</Label>
                     <Input id="cpf" value={formData.cpf} onChange={(e) => setFormData({ ...formData, cpf: e.target.value })} placeholder="000.000.000-00" />
                   </div>
+                  <div className="flex items-start gap-2">
+                    <Checkbox
+                      id="termsAccepted"
+                      checked={termsAccepted}
+                      onCheckedChange={(checked) => setTermsAccepted(checked === true)}
+                      className="mt-0.5"
+                    />
+                    <Label htmlFor="termsAccepted" className="text-sm font-normal leading-snug cursor-pointer">
+                      Li e aceito os{" "}
+                      <Link href="/termos" target="_blank" className="text-[#7C5C4A] underline hover:no-underline">
+                        Termos de Uso
+                      </Link>{" "}
+                      e a{" "}
+                      <Link href="/privacidade" target="_blank" className="text-[#7C5C4A] underline hover:no-underline">
+                        Política de Privacidade
+                      </Link>
+                    </Label>
+                  </div>
                   <div className="flex gap-3 pt-4">
-                    <Button type="submit" className="flex-1 bg-[#7C5C4A] hover:bg-[#5A3F30] text-white rounded-full" disabled={registerMutation.isPending}>
+                    <Button type="submit" className="flex-1 bg-[#7C5C4A] hover:bg-[#5A3F30] text-white rounded-full" disabled={registerMutation.isPending || !termsAccepted}>
                       {registerMutation.isPending ? "Cadastrando..." : "Cadastrar"}
                     </Button>
                     <Button type="button" variant="outline" onClick={() => setShowRegisterForm(false)} disabled={registerMutation.isPending} className="rounded-full">
@@ -351,6 +376,10 @@ export default function Home() {
         <div className="max-w-7xl mx-auto flex items-center justify-between text-sm flex-wrap gap-4">
           <div className="bg-[#7C5C4A] text-[#F5F3EF] px-3 py-1 text-xs font-medium rounded-sm tracking-wide">SISA</div>
           <p>© 2026 SISA — Sistema de Gerenciamento de Salas</p>
+          <div className="flex items-center gap-4">
+            <Link href="/termos" className="hover:text-white transition-colors">Termos de Uso</Link>
+            <Link href="/privacidade" className="hover:text-white transition-colors">Política de Privacidade</Link>
+          </div>
           <p>Todos os direitos reservados</p>
         </div>
       </footer>

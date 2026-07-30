@@ -31,12 +31,16 @@ import SisaBilling from "./pages/sisa/SisaBilling";
 import SisaUsers from "./pages/sisa/SisaUsers";
 import SisaAudit from "./pages/sisa/SisaAudit";
 import ReceptionPanel from "./pages/reception/ReceptionPanel";
+import Terms from "./pages/Terms";
+import Privacy from "./pages/Privacy";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/login" component={Login} />
+      <Route path="/termos" component={Terms} />
+      <Route path="/privacidade" component={Privacy} />
       
       {/* Professional Routes */}
       <Route path="/dashboard" component={ProfessionalDashboard} />

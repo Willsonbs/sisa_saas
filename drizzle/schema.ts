@@ -126,6 +126,8 @@ export const users = pgTable("users", {
   permCanCheckIn: boolean("permCanCheckIn").default(true).notNull(),
   permCanManagePatients: boolean("permCanManagePatients").default(false).notNull(),
   passwordHash: varchar("passwordHash", { length: 255 }),
+  termsAcceptedAt: timestamp("termsAcceptedAt"),
+  termsVersion: varchar("termsVersion", { length: 20 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
