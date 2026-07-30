@@ -18,6 +18,10 @@ import { encrypt, decrypt } from "./_core/encryption";
 import { logPatientAccess, getClientIp } from "./_core/patientAccessLog";
 import { superAdminRouter } from "./routers/superAdmin";
 
+// Versão vigente dos Termos de Uso / Política de Privacidade - registrada
+// junto com o aceite do usuário no cadastro (users.termsVersion).
+const TERMS_VERSION = "1.0";
+
 // Receptionist procedure (admin or receptionist)
 const receptionistProcedure = protectedProcedure.use(({ ctx, next }) => {
   if (ctx.auth.role !== 'admin' && ctx.auth.role !== 'receptionist') {
@@ -170,22 +174,25 @@ export const appRouter = router({
         professionalRegistry: z.string().min(3, "Registro profissional obrigat\u00f3rio"),
         registryType: z.enum(["CRP", "CRM", "CRO", "CREFITO", "COREN", "Outro"]),
         cpf: z.string().optional(),
+        termsAccepted: z.literal(true, {
+          error: "\u00c9 necess\u00e1rio aceitar os Termos de Uso e a Pol\u00edtica de Privacidade",
+        }),
       }))
       .mutation(async ({ input }) => {
         const { hashPassword } = await import('./auth');
-        
+
         // Verificar se email j\u00e1 existe
         const existingUser = await db.getUserByEmail(input.email);
         if (existingUser) {
-          throw new TRPCError({ 
-            code: 'CONFLICT', 
-            message: 'Este email j\u00e1 est\u00e1 cadastrado' 
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message: 'Este email j\u00e1 est\u00e1 cadastrado'
           });
         }
-        
+
         // Hash da senha
         const hashedPassword = await hashPassword(input.password);
-        
+
         // Criar usu\u00e1rio
         await db.createProfessional({
           email: input.email,
@@ -197,6 +204,8 @@ export const appRouter = router({
           cpf: input.cpf,
           role: 'professional',
           loginMethod: 'password',
+          termsAcceptedAt: new Date(),
+          termsVersion: TERMS_VERSION,
         });
         
         return { 
