@@ -30,6 +30,7 @@ import {
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
+import { Logo } from './Logo';
 import { Button } from "./ui/button";
 
 const getMenuItems = (role: string, user?: any) => {
@@ -101,9 +102,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#F5F3EF]">
         <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
-          <div className="bg-[#7C5C4A] text-[#F5F3EF] px-4 py-1.5 text-sm font-medium rounded-sm tracking-wide mb-4">
-            SISA
-          </div>
+          <Logo className="h-14 w-14 mb-4" />
           <h1 className="text-2xl font-light tracking-tight text-center text-[#3D3D2E]">
             Acesso necessário
           </h1>
@@ -196,10 +195,7 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
               </button>
               {!isCollapsed && (
                 <div className="flex items-center gap-2 min-w-0">
-                  {/* Terracotta brand pill */}
-                  <div className="bg-[#7C5C4A] text-[#F5F3EF] px-3 py-1 text-xs font-medium rounded-sm tracking-wide shrink-0">
-                    SISA
-                  </div>
+                  <Logo className="h-7 w-7 shrink-0" />
                   <span className="text-xs text-[#A8A49E] truncate font-light">
                     {user?.role === 'admin' ? 'Administrador' : user?.role === 'receptionist' ? 'Recepção' : user?.role === 'financial' ? 'Financeiro' : 'Profissional'}
                   </span>
@@ -281,9 +277,7 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
           <div className="flex border-b border-[#E8E4DF] h-14 items-center justify-between bg-white/95 px-4 backdrop-blur sticky top-0 z-40">
             <div className="flex items-center gap-3">
               <SidebarTrigger className="h-9 w-9 rounded-lg" />
-              <div className="bg-[#7C5C4A] text-[#F5F3EF] px-3 py-1 text-xs font-medium rounded-sm tracking-wide">
-                SISA
-              </div>
+              <Logo className="h-7 w-7" />
               <span className="text-sm text-[#6B6560] font-light">
                 {activeMenuItem?.label ?? "Menu"}
               </span>

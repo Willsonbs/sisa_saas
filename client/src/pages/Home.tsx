@@ -6,10 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
-import { ArrowRight, Circle, Calendar, CreditCard, Shield, Bell, TrendingUp, Zap, Building2, UserPlus } from "lucide-react";
+import { ArrowRight, Circle, Calendar, CreditCard, Shield, Bell, TrendingUp, Zap, UserPlus } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useLocation, Link } from "wouter";
+import { Logo } from "@/components/Logo";
 
 const features = [
   { title: "Reservas em tempo real", description: "Verifique disponibilidade e reserve salas instantaneamente, sem conflitos de agenda ou ligações desnecessárias." },
@@ -104,8 +105,9 @@ export default function Home() {
       {/* ── Navigation ─────────────────────────────────────────────── */}
       <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-[#E8E4DF]">
         <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
-          <div className="bg-[#7C5C4A] text-[#F5F3EF] px-4 py-1.5 text-sm font-medium rounded-sm tracking-wide">
-            SISA
+          <div className="flex items-center gap-2">
+            <Logo className="h-8 w-8" />
+            <span className="font-bold text-[#3D3D2E] tracking-wide">SISA</span>
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm text-[#6B6560]">
             <a href="#sobre" className="hover:text-[#3D3D2E] transition-colors">Sobre</a>
@@ -374,7 +376,7 @@ export default function Home() {
       {/* ── Footer ─────────────────────────────────────────────────── */}
       <footer className="bg-[#3D3D2E] text-[#A8A49E] py-8 px-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between text-sm flex-wrap gap-4">
-          <div className="bg-[#7C5C4A] text-[#F5F3EF] px-3 py-1 text-xs font-medium rounded-sm tracking-wide">SISA</div>
+          <Logo className="h-8 w-8" />
           <p>© 2026 SISA — Sistema de Gerenciamento de Salas</p>
           <div className="flex items-center gap-4">
             <Link href="/termos" className="hover:text-white transition-colors">Termos de Uso</Link>
