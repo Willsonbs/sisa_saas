@@ -3,11 +3,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
-import { Building2, Eye, EyeOff, ArrowLeft } from "lucide-react";
+import { Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useLocation, Link } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { Logo } from "@/components/Logo";
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -80,9 +81,7 @@ export default function Login() {
       {/* Header */}
       <div className="mb-8 text-center">
         <div className="inline-flex items-center gap-3 mb-4">
-          <div className="h-12 w-12 rounded-lg bg-[#7C5C4A] flex items-center justify-center">
-            <Building2 className="h-7 w-7 text-[#F5F3EF]" />
-          </div>
+          <Logo className="h-12 w-12" />
           <h1 className="font-bold text-2xl text-[#3D3D2E]">SISA</h1>
         </div>
         <p className="text-[#6B6560]">Sistema de Gerenciamento de Salas</p>

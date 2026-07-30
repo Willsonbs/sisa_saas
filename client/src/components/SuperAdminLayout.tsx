@@ -8,6 +8,7 @@ import {
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "./ui/button";
+import { Logo } from "./Logo";
 
 const SISA_DARK  = "#1A1A14";
 const SISA_MID   = "#2C2C20";
@@ -54,9 +55,7 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
       {/* Logo */}
       <div className="px-5 py-5 border-b" style={{ borderColor: SISA_MID }}>
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded flex items-center justify-center text-xs font-bold text-white" style={{ background: SISA_ACCENT }}>
-            S
-          </div>
+          <Logo className="h-8 w-8" />
           <div>
             <p className="text-xs font-bold tracking-widest text-white uppercase">SISA</p>
             <p className="text-[10px]" style={{ color: "#9A8A7A" }}>Painel de Gestão</p>

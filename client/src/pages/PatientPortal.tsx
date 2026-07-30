@@ -11,8 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { User, Phone, Mail, Calendar, Clock, MapPin, AlertCircle, CheckCircle2, ClipboardList } from "lucide-react";
+import { User, Phone, Mail, Calendar, Clock, MapPin, AlertCircle, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import { Logo } from "@/components/Logo";
 
 const LGPD_CONSENT_TEXT = `Ao preencher este formulário, você consente com o tratamento dos seus dados pessoais (nome e contato) pela clínica para fins de contato sobre disponibilidade de horários. Seus dados serão utilizados exclusivamente para este fim, conforme a Lei Geral de Proteção de Dados (LGPD - Lei nº 13.709/2018). Você pode solicitar a exclusão dos seus dados a qualquer momento entrando em contato com a clínica.`;
 
@@ -129,9 +130,7 @@ export default function PatientPortal() {
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-stone-200">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#3D3D2E' }}>
-            <ClipboardList className="h-6 w-6 text-white" />
-          </div>
+          <Logo className="h-10 w-10" />
           <div>
             <h1 className="font-bold" style={{ color: '#3D3D2E' }}>SISA</h1>
             <p className="text-xs text-stone-500">Sistema de Gerenciamento de Salas</p>
