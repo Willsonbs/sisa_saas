@@ -1302,6 +1302,10 @@ export const appRouter = router({
       };
     }),
 
+    dashboardCharts: adminProcedure.query(async ({ ctx }) => {
+      return db.getDashboardChartsStats(ctx.auth.tenantId);
+    }),
+
     listAllBookings: staffProcedure
       .input(z.object({ startDate: z.date().optional(), endDate: z.date().optional(), roomId: z.number().optional() }).optional())
       .query(async ({ ctx, input }) => {

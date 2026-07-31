@@ -317,6 +317,63 @@ export async function getDashboardBookingStats(tenantId: number) {
   };
 }
 
+export async function getDashboardChartsStats(tenantId: number, days = 30) {
+  const db = await getDb();
+  if (!db) return { byWeekday: [], roomHours: [] };
+
+  const now = new Date();
+  const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+
+  // Considera apenas reservas que de fato ocuparam a sala (exclui draft/cancelled).
+  const materializedStatusFilter = or(
+    eq(bookings.status, 'confirmed'),
+    eq(bookings.status, 'completed'),
+    eq(bookings.status, 'no_show'),
+  );
+
+  const rows = await db
+    .select({
+      startTime: bookings.startTime,
+      endTime: bookings.endTime,
+      roomId: bookings.roomId,
+    })
+    .from(bookings)
+    .where(and(
+      eq(bookings.tenantId, tenantId),
+      gte(bookings.startTime, startDate),
+      lte(bookings.startTime, now),
+      materializedStatusFilter,
+    ));
+
+  const weekdayLabels = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  const byWeekdayCount = new Array(7).fill(0);
+  const hoursByRoom = new Map<number, number>();
+
+  for (const row of rows) {
+    byWeekdayCount[row.startTime.getDay()]++;
+    const hours = (row.endTime.getTime() - row.startTime.getTime()) / (1000 * 60 * 60);
+    hoursByRoom.set(row.roomId, (hoursByRoom.get(row.roomId) || 0) + hours);
+  }
+
+  // Semana começando na segunda-feira, como no restante da UI.
+  const byWeekday = [1, 2, 3, 4, 5, 6, 0].map(dayIndex => ({
+    day: weekdayLabels[dayIndex],
+    total: byWeekdayCount[dayIndex],
+  }));
+
+  const roomIds = Array.from(hoursByRoom.keys());
+  const roomsInfo = roomIds.length > 0
+    ? await db.select({ id: rooms.id, name: rooms.name }).from(rooms).where(and(eq(rooms.tenantId, tenantId)))
+    : [];
+  const roomNameById = new Map(roomsInfo.map(r => [r.id, r.name]));
+
+  const roomHours = roomIds
+    .map(id => ({ roomName: roomNameById.get(id) || `Sala ${id}`, hours: Math.round(hoursByRoom.get(id)! * 10) / 10 }))
+    .sort((a, b) => b.hours - a.hours);
+
+  return { byWeekday, roomHours };
+}
+
 export async function getAllProfessionals(tenantId?: number) {
   const db = await getDb();
   if (!db) return [];
