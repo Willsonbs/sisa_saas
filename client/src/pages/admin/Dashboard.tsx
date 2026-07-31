@@ -5,10 +5,14 @@ import { trpc } from "@/lib/trpc";
 import { formatCurrency } from "@/lib/utils";
 import { Building2, Users, Calendar, Settings, DollarSign, TrendingUp } from "lucide-react";
 import { Link } from "wouter";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+
+const TERRACOTTA = "#7C5C4A";
+const FOREST = "#3D3D2E";
 
 export default function AdminDashboard() {
   const { data: stats, isLoading } = trpc.admin.stats.useQuery();
-  const { data: rooms } = trpc.rooms.list.useQuery({ includeInactive: true });
+  const { data: charts, isLoading: chartsLoading } = trpc.admin.dashboardCharts.useQuery();
 
   return (
     <DashboardLayout>
@@ -111,62 +115,62 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        {/* Rooms Overview */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Salas Cadastradas</CardTitle>
-            <CardDescription>Visão geral de todas as salas do sistema</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {rooms && rooms.length > 0 ? (
-              <div className="space-y-3">
-                {rooms.map((room) => (
-                  <div
-                    key={room.id}
-                    className="flex items-center justify-between p-4 border rounded-lg"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div
-                        className={`h-10 w-10 rounded-full flex items-center justify-center ${
-                          room.isActive
-                            ? 'bg-green-100 text-green-600'
-                            : 'bg-gray-100 text-gray-600'
-                        }`}
-                      >
-                        <Building2 className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <p className="font-medium">{room.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          Capacidade: {room.capacity} • R$ {(room.pricePerHour / 100).toFixed(2)}/h
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`text-xs px-2 py-1 rounded-full ${
-                          room.isActive
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-gray-100 text-gray-700'
-                        }`}
-                      >
-                        {room.isActive ? 'Ativa' : 'Inativa'}
-                      </span>
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href={`/admin/rooms/${room.id}/edit`}>Editar</Link>
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Nenhuma sala cadastrada</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Charts */}
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Reservas por Dia da Semana</CardTitle>
+              <CardDescription>Últimos 30 dias — identifique os dias mais parados</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {chartsLoading ? (
+                <div className="h-[220px] bg-muted animate-pulse rounded" />
+              ) : charts && charts.byWeekday.some(d => d.total > 0) ? (
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={charts.byWeekday}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E8E3DC" />
+                    <XAxis dataKey="day" tick={{ fontSize: 12 }} />
+                    <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+                    <Tooltip formatter={(v: number) => [v, "Reservas"]} />
+                    <Bar dataKey="total" fill={TERRACOTTA} radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>Sem reservas nos últimos 30 dias</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Horas Reservadas por Sala</CardTitle>
+              <CardDescription>Últimos 30 dias — identifique salas ociosas ou saturadas</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {chartsLoading ? (
+                <div className="h-[220px] bg-muted animate-pulse rounded" />
+              ) : charts && charts.roomHours.length > 0 ? (
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={charts.roomHours} layout="vertical" margin={{ left: 12 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E8E3DC" />
+                    <XAxis type="number" tick={{ fontSize: 12 }} allowDecimals={false} />
+                    <YAxis type="category" dataKey="roomName" tick={{ fontSize: 12 }} width={90} />
+                    <Tooltip formatter={(v: number) => [`${v}h`, "Horas reservadas"]} />
+                    <Bar dataKey="hours" fill={FOREST} radius={[0, 3, 3, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>Sem reservas nos últimos 30 dias</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
       </div>
     </DashboardLayout>
