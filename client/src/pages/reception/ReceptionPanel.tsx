@@ -13,8 +13,16 @@ import {
 } from "@/components/ui/dialog";
 import {
   Search, CalendarDays, Clock, MapPin, User, Phone, FileText,
-  CheckCircle2, AlertCircle, XCircle, HelpCircle, X, Building2,
+  CheckCircle2, AlertCircle, XCircle, HelpCircle, X, Building2, Users,
 } from "lucide-react";
+
+const APPT_STATUS_MAP: Record<string, { label: string; className: string }> = {
+  scheduled:  { label: "Agendado",   className: "bg-gray-100 text-gray-600" },
+  confirmed:  { label: "Confirmado", className: "bg-green-100 text-green-700" },
+  completed:  { label: "Concluído",  className: "bg-blue-100 text-blue-700" },
+  cancelled:  { label: "Cancelado",  className: "bg-red-100 text-red-600" },
+  no_show:    { label: "No-show",    className: "bg-orange-100 text-orange-700" },
+};
 
 // Remove acentos para busca mais tolerante (ex: "goncalves" encontra "Gonçalves")
 function normalize(str: string) {
@@ -65,8 +73,16 @@ type Booking = {
 };
 
 function BookingDetailDialog({ booking, onClose }: { booking: Booking | null; onClose: () => void }) {
+  // Atendimentos (sub-registros de paciente) da reserva, quando o profissional
+  // dividiu a reserva em vários atendimentos — ver Gerenciar Reservas (admin).
+  const { data: appts = [] } = trpc.appointments.listByBooking.useQuery(
+    { bookingId: booking?.id ?? 0 },
+    { enabled: !!booking }
+  );
+
   if (!booking) return null;
   const cfg = STATUS_CONFIG[booking.status] ?? { label: booking.status, color: "bg-gray-100 text-gray-600", icon: null };
+  const hasAppointments = appts.length > 0;
 
   return (
     <Dialog open={!!booking} onOpenChange={onClose}>
@@ -99,7 +115,28 @@ function BookingDetailDialog({ booking, onClose }: { booking: Booking | null; on
               <p className="text-muted-foreground">{formatTime(booking.startTime)} – {formatTime(booking.endTime)}</p>
             </div>
           </div>
-          {booking.patientName && (
+          {hasAppointments ? (
+            <div className="flex items-start gap-2">
+              <Users className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                <p className="text-xs text-muted-foreground">Atendimentos ({appts.length})</p>
+                {appts.map(appt => {
+                  const ast = APPT_STATUS_MAP[appt.status] ?? APPT_STATUS_MAP.scheduled;
+                  return (
+                    <div key={appt.id} className="flex items-center justify-between bg-gray-50 rounded-md px-2 py-1.5 text-xs">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-mono text-[#7C5C4A] font-medium shrink-0">
+                          {formatTime(new Date(appt.startTime).getTime())}–{formatTime(new Date(appt.endTime).getTime())}
+                        </span>
+                        <span className="text-gray-900 truncate">{appt.patientName || "—"}</span>
+                      </div>
+                      <Badge className={`text-[10px] ${ast.className}`}>{ast.label}</Badge>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : booking.patientName && (
             <div className="flex items-start gap-2">
               <User className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
               <div>
@@ -108,7 +145,7 @@ function BookingDetailDialog({ booking, onClose }: { booking: Booking | null; on
               </div>
             </div>
           )}
-          {booking.patientPhone && (
+          {!hasAppointments && booking.patientPhone && (
             <div className="flex items-start gap-2">
               <Phone className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
               <p className="text-gray-700">{booking.patientPhone}</p>
