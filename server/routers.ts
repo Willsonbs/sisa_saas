@@ -570,7 +570,11 @@ export const appRouter = router({
     upcoming: professionalProcedure
       .input(z.object({ limit: z.number().optional() }).optional())
       .query(async ({ ctx, input }) => {
-        return db.getUpcomingBookings(ctx.auth.id, input?.limit);
+        const upcoming = await db.getUpcomingBookings(ctx.auth.id, input?.limit);
+        return upcoming.map(booking => ({
+          ...booking,
+          patientName: booking.patientName ? (decrypt(booking.patientName) ?? '(dados indisponíveis)') : null,
+        }));
       }),
     
     getById: protectedProcedure
@@ -1175,7 +1179,7 @@ export const appRouter = router({
               id: booking.id,
               roomName: room?.name || 'Unknown',
               professionalName: professional?.name || 'Unknown',
-              patientName: booking.patientName,
+              patientName: booking.patientName ? (decrypt(booking.patientName) ?? '(dados indisponíveis)') : null,
               startTime: booking.startTime,
               endTime: booking.endTime,
               receptionNotes: booking.receptionNotes,
@@ -1629,7 +1633,7 @@ export const appRouter = router({
             tenantId,
             type: 'noshow_registered',
             title: 'No-show registrado',
-            message: `O paciente ${booking.patientName} não compareceu ao atendimento.`,
+            message: `O paciente ${booking.patientName ? (decrypt(booking.patientName) ?? '(dados indisponíveis)') : ''} não compareceu ao atendimento.`,
             bookingId: input.bookingId,
           });
         }
