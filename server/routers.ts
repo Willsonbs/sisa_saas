@@ -1431,8 +1431,13 @@ export const appRouter = router({
         const allRooms = await db.getAllRooms(false, tenantId);
         const allBookings = await db.getBookingsByTenant(tenantId, input?.startDate, input?.endDate);
         const rooms = input?.roomId ? allRooms.filter((r: any) => r.id === input.roomId) : allRooms;
+        // Mesmo criterio de "receita realizada" usado no dashboard: reservas que
+        // de fato ocuparam a sala (exclui draft/cancelled/pending_payment). Sem
+        // isso, reservas passadas ja concluidas pelo job de auto-conclusao
+        // (status 'completed') sumiam do relatorio.
+        const revenueStatuses = new Set(['confirmed', 'completed', 'no_show']);
         return Promise.all(rooms.map(async (room: any) => {
-          const rb = allBookings.filter((b: any) => b.roomId === room.id && b.status === 'confirmed');
+          const rb = allBookings.filter((b: any) => b.roomId === room.id && revenueStatuses.has(b.status));
           const enriched = await Promise.all(rb.map(async (b: any) => {
             const prof = await db.getUserById(b.professionalId);
             return { ...b, professionalName: (prof as any)?.name || `Profissional #${b.professionalId}` };
