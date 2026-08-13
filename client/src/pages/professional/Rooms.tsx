@@ -380,7 +380,7 @@ export default function Rooms() {
       <div className="space-y-4">
         {/* Título */}
         <div>
-          <h1 className="text-3xl font-bold">Salas</h1>
+          <h1 className="text-3xl font-bold">Fazer Reserva</h1>
           <p className="text-muted-foreground mt-1">
             Visualize a disponibilidade das salas e faça sua reserva
           </p>

@@ -71,7 +71,7 @@ const getMenuItems = (role: string, user?: any) => {
   }
   return [
     { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
-    { icon: Building2, label: "Salas", path: "/rooms" },
+    { icon: Building2, label: "Fazer Reserva", path: "/rooms" },
     { icon: Calendar, label: "Minhas Reservas", path: "/bookings" },
     { icon: CreditCard, label: "Créditos", path: "/credits" },
     { icon: ClipboardList, label: "Lista de Espera", path: "/waitlist" },
