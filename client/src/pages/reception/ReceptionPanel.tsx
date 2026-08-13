@@ -70,6 +70,7 @@ type Booking = {
   professionalSpecialty: string | null;
   patientName: string | null;
   patientPhone: string | null;
+  appointmentPatientNames: string[];
 };
 
 function BookingDetailDialog({ booking, onClose }: { booking: Booking | null; onClose: () => void }) {
@@ -231,7 +232,8 @@ export default function ReceptionPanel() {
       (b) =>
         normalize(b.professionalName ?? "").includes(q) ||
         normalize(b.roomName ?? "").includes(q) ||
-        normalize(b.patientName ?? "").includes(q)
+        normalize(b.patientName ?? "").includes(q) ||
+        b.appointmentPatientNames.some((n) => normalize(n).includes(q))
     );
   }, [bookings, search, selectedProfessional]);
 
