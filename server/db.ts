@@ -1381,3 +1381,79 @@ export async function getReceptionBookings(tenantId: number, startMs: number, en
   .where(and(...conditions))
   .orderBy(bookings.startTime);
 }
+
+export async function getReceptionDashboardStats(tenantId: number) {
+  const db = await getDb();
+  if (!db) {
+    return {
+      bookingsToday: 0, confirmedToday: 0, completedToday: 0, cancelledToday: 0, noShowToday: 0,
+      roomsOccupiedNow: 0, totalRooms: 0, nextBooking: null, birthdaysToday: [],
+    };
+  }
+
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+  const todayRows = await db.select({
+    id: bookings.id,
+    status: bookings.status,
+    startTime: bookings.startTime,
+    endTime: bookings.endTime,
+    roomId: bookings.roomId,
+    professionalId: bookings.professionalId,
+  })
+    .from(bookings)
+    .where(and(
+      eq(bookings.tenantId, tenantId),
+      gte(bookings.startTime, startOfDay),
+      lte(bookings.startTime, endOfDay),
+    ));
+
+  const confirmedToday = todayRows.filter(r => r.status === 'confirmed').length;
+  const completedToday = todayRows.filter(r => r.status === 'completed').length;
+  const cancelledToday = todayRows.filter(r => r.status === 'canceled_with_credit').length;
+  const noShowToday = todayRows.filter(r => r.status === 'no_show').length;
+
+  const roomsOccupiedNow = new Set(
+    todayRows
+      .filter(r => r.status === 'confirmed' && r.startTime <= now && r.endTime > now)
+      .map(r => r.roomId)
+  ).size;
+
+  const allRooms = await getAllRooms(false, tenantId);
+
+  const nextRow = todayRows
+    .filter(r => (r.status === 'confirmed' || r.status === 'pending_payment') && r.startTime > now)
+    .sort((a, b) => a.startTime.getTime() - b.startTime.getTime())[0];
+  let nextBooking = null;
+  if (nextRow) {
+    const room = await getRoomById(nextRow.roomId, tenantId);
+    const professional = await getUserById(nextRow.professionalId);
+    nextBooking = {
+      startTime: nextRow.startTime,
+      roomName: room?.name ?? '—',
+      professionalName: professional?.name ?? '—',
+    };
+  }
+
+  // Aniversariantes de hoje entre os profissionais vinculados a este tenant.
+  // dateOfBirth e armazenado como string "YYYY-MM-DD"; compara mes/dia.
+  const professionals = await getAllProfessionals(tenantId);
+  const todayMonthDay = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const birthdaysToday = professionals
+    .filter((p: any) => p.dateOfBirth && p.dateOfBirth.slice(5, 10) === todayMonthDay)
+    .map((p: any) => ({ id: p.id, name: p.name as string }));
+
+  return {
+    bookingsToday: todayRows.length,
+    confirmedToday,
+    completedToday,
+    cancelledToday,
+    noShowToday,
+    roomsOccupiedNow,
+    totalRooms: allRooms.length,
+    nextBooking,
+    birthdaysToday,
+  };
+}
