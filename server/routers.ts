@@ -1209,6 +1209,13 @@ export const appRouter = router({
         const enriched = await Promise.all(rawBookings.map(async (b) => {
           const room = await db.getRoomById(b.roomId);
           const prof = await db.getUserById(b.professionalId);
+          // Quando o profissional divide a reserva em vários atendimentos, o
+          // patientName da reserva reflete só o primeiro paciente informado.
+          // Sem isso, a busca da recepção nunca encontrava o 2º paciente em diante.
+          const appts = await db.getAppointmentsByBooking(b.id);
+          const appointmentPatientNames = appts
+            .map(a => a.patientName ? (decrypt(a.patientName) ?? null) : null)
+            .filter((n): n is string => !!n);
           return {
             id: b.id,
             startTime: b.startTime instanceof Date ? b.startTime.getTime() : Number(b.startTime),
@@ -1222,6 +1229,7 @@ export const appRouter = router({
             professionalSpecialty: prof?.specialty ?? null,
             patientName: b.patientName ? (decrypt(b.patientName) ?? '(dados indisponíveis)') : null,
             patientPhone: b.patientPhone ? (decrypt(b.patientPhone) ?? null) : null,
+            appointmentPatientNames,
           };
         }));
         if (input.search) {
@@ -1229,7 +1237,8 @@ export const appRouter = router({
           return enriched.filter(b =>
             (b.professionalName ?? '').toLowerCase().includes(q) ||
             (b.roomName ?? '').toLowerCase().includes(q) ||
-            (b.patientName ?? '').toLowerCase().includes(q)
+            (b.patientName ?? '').toLowerCase().includes(q) ||
+            b.appointmentPatientNames.some(n => n.toLowerCase().includes(q))
           );
         }
         return enriched;
