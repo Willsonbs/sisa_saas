@@ -1191,6 +1191,10 @@ export const appRouter = router({
         return enrichedBookings;
       }),
 
+    dashboard: receptionistProcedure.query(async ({ ctx }) => {
+      return db.getReceptionDashboardStats(ctx.auth.tenantId!);
+    }),
+
     bookings: receptionistProcedure
       .input(z.object({
         dateFrom: z.string().optional(),

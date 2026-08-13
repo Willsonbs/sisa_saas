@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Search, CalendarDays, Clock, MapPin, User, Phone, FileText,
-  CheckCircle2, AlertCircle, XCircle, HelpCircle, X, Building2, Users,
+  CheckCircle2, AlertCircle, XCircle, HelpCircle, X, Building2, Users, Gift, DoorOpen,
 } from "lucide-react";
 
 const APPT_STATUS_MAP: Record<string, { label: string; className: string }> = {
@@ -168,6 +168,19 @@ function BookingDetailDialog({ booking, onClose }: { booking: Booking | null; on
   );
 }
 
+function StatCard({ icon: Icon, label, value, sub }: { icon: React.ElementType; label: string; value: string | number; sub?: string }) {
+  return (
+    <div className="bg-white border rounded-lg p-4 flex items-start justify-between">
+      <div>
+        <p className="text-xs text-gray-500">{label}</p>
+        <p className="text-2xl font-bold text-gray-900 mt-0.5">{value}</p>
+        {sub && <p className="text-xs text-gray-500 mt-0.5">{sub}</p>}
+      </div>
+      <Icon className="h-5 w-5 text-[#7C5C4A] shrink-0" />
+    </div>
+  );
+}
+
 export default function ReceptionPanel() {
   const [search, setSearch] = useState("");
   const today = toDateStr(new Date());
@@ -188,6 +201,7 @@ export default function ReceptionPanel() {
 
   const { data: professionals = [] } = trpc.reception.professionals.useQuery();
   const { data: rooms = [] } = trpc.rooms.list.useQuery({ includeInactive: false });
+  const { data: stats } = trpc.reception.dashboard.useQuery(undefined, { refetchInterval: 60_000 });
 
   // Sugestões de profissionais cadastrados que batem com o texto digitado
   // (busca por substring, sem diferenciar maiúsculas/minúsculas ou acentos —
@@ -269,6 +283,32 @@ export default function ReceptionPanel() {
           </h1>
           <p className="text-gray-500 mt-1 text-sm">Relatório de reservas por sala, com filtros de período e sala.</p>
         </div>
+
+        {/* Painel do dia: visão geral independente do filtro abaixo */}
+        {stats && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              <StatCard icon={CalendarDays} label="Reservas Hoje" value={stats.bookingsToday} />
+              <StatCard icon={CheckCircle2} label="Confirmadas Hoje" value={stats.confirmedToday} />
+              <StatCard icon={DoorOpen} label="Salas Ocupadas" value={`${stats.roomsOccupiedNow}/${stats.totalRooms}`} sub="agora" />
+              <StatCard icon={XCircle} label="No-show / Cancel." value={stats.noShowToday + stats.cancelledToday} sub="hoje" />
+              <StatCard
+                icon={Clock}
+                label="Próxima Reserva"
+                value={stats.nextBooking ? formatTime(new Date(stats.nextBooking.startTime).getTime()) : "—"}
+                sub={stats.nextBooking ? `${stats.nextBooking.professionalName} · ${stats.nextBooking.roomName}` : "Nenhuma restante hoje"}
+              />
+            </div>
+            {stats.birthdaysToday.length > 0 && (
+              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5 text-sm text-amber-800">
+                <Gift className="h-4 w-4 shrink-0" />
+                <span>
+                  Aniversário hoje: <span className="font-medium">{stats.birthdaysToday.map(b => b.name).join(", ")}</span>
+                </span>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Filtros: período (data início/fim) + sala */}
         <div className="flex flex-wrap items-center gap-2">
