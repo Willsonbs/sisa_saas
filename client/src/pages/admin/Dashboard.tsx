@@ -7,8 +7,10 @@ import { Building2, Users, Calendar, Settings, DollarSign, TrendingUp } from "lu
 import { Link } from "wouter";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 
-const TERRACOTTA = "#7C5C4A";
-const FOREST = "#3D3D2E";
+// Mesmo azul/âmbar já usados nos cards de KPI do Painel de Recepção
+// (bg-blue-600 / bg-amber-500 do Tailwind).
+const BLUE = "#2563eb";
+const AMBER = "#f59e0b";
 
 export default function AdminDashboard() {
   const { data: stats, isLoading } = trpc.admin.stats.useQuery();
@@ -132,7 +134,7 @@ export default function AdminDashboard() {
                     <XAxis dataKey="day" tick={{ fontSize: 12 }} />
                     <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
                     <Tooltip formatter={(v: number) => [v, "Reservas"]} />
-                    <Bar dataKey="total" fill={TERRACOTTA} radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="total" fill={BLUE} radius={[3, 3, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -159,7 +161,7 @@ export default function AdminDashboard() {
                     <XAxis type="number" tick={{ fontSize: 12 }} allowDecimals={false} />
                     <YAxis type="category" dataKey="roomName" tick={{ fontSize: 12 }} width={90} />
                     <Tooltip formatter={(v: number) => [`${v}h`, "Horas reservadas"]} />
-                    <Bar dataKey="hours" fill={FOREST} radius={[0, 3, 3, 0]} />
+                    <Bar dataKey="hours" fill={AMBER} radius={[0, 3, 3, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
