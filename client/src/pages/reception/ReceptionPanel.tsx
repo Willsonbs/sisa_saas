@@ -168,7 +168,16 @@ function BookingDetailDialog({ booking, onClose }: { booking: Booking | null; on
   );
 }
 
-function StatCard({ icon: Icon, label, value, sub }: { icon: React.ElementType; label: string; value: string | number; sub?: string }) {
+const STAT_COLORS = {
+  brown:  { bg: "bg-[#F0E9E3]", text: "text-[#7C5C4A]" },
+  green:  { bg: "bg-green-100", text: "text-green-600" },
+  blue:   { bg: "bg-blue-100", text: "text-blue-600" },
+  red:    { bg: "bg-red-100", text: "text-red-600" },
+  amber:  { bg: "bg-amber-100", text: "text-amber-600" },
+} as const;
+
+function StatCard({ icon: Icon, label, value, sub, color }: { icon: React.ElementType; label: string; value: string | number; sub?: string; color: keyof typeof STAT_COLORS }) {
+  const c = STAT_COLORS[color];
   return (
     <div className="bg-white border rounded-lg p-4 flex items-start justify-between">
       <div>
@@ -176,7 +185,9 @@ function StatCard({ icon: Icon, label, value, sub }: { icon: React.ElementType; 
         <p className="text-2xl font-bold text-gray-900 mt-0.5">{value}</p>
         {sub && <p className="text-xs text-gray-500 mt-0.5">{sub}</p>}
       </div>
-      <Icon className="h-5 w-5 text-[#7C5C4A] shrink-0" />
+      <div className={`p-2 rounded-lg shrink-0 ${c.bg}`}>
+        <Icon className={`h-5 w-5 ${c.text}`} />
+      </div>
     </div>
   );
 }
@@ -288,15 +299,16 @@ export default function ReceptionPanel() {
         {stats && (
           <div className="space-y-3">
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-              <StatCard icon={CalendarDays} label="Reservas Hoje" value={stats.bookingsToday} />
-              <StatCard icon={CheckCircle2} label="Confirmadas Hoje" value={stats.confirmedToday} />
-              <StatCard icon={DoorOpen} label="Salas Ocupadas" value={`${stats.roomsOccupiedNow}/${stats.totalRooms}`} sub="agora" />
-              <StatCard icon={XCircle} label="No-show / Cancel." value={stats.noShowToday + stats.cancelledToday} sub="hoje" />
+              <StatCard icon={CalendarDays} label="Reservas Hoje" value={stats.bookingsToday} color="brown" />
+              <StatCard icon={CheckCircle2} label="Confirmadas Hoje" value={stats.confirmedToday} color="green" />
+              <StatCard icon={DoorOpen} label="Salas Ocupadas" value={`${stats.roomsOccupiedNow}/${stats.totalRooms}`} sub="agora" color="blue" />
+              <StatCard icon={XCircle} label="No-show / Cancel." value={stats.noShowToday + stats.cancelledToday} sub="hoje" color="red" />
               <StatCard
                 icon={Clock}
                 label="Próxima Reserva"
                 value={stats.nextBooking ? formatTime(new Date(stats.nextBooking.startTime).getTime()) : "—"}
                 sub={stats.nextBooking ? `${stats.nextBooking.professionalName} · ${stats.nextBooking.roomName}` : "Nenhuma restante hoje"}
+                color="amber"
               />
             </div>
             {stats.birthdaysToday.length > 0 && (
