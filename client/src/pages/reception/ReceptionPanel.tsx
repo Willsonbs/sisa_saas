@@ -179,7 +179,7 @@ const STAT_COLORS = {
 function StatCard({ icon: Icon, label, value, sub, color }: { icon: React.ElementType; label: string; value: string | number; sub?: string; color: keyof typeof STAT_COLORS }) {
   const c = STAT_COLORS[color];
   return (
-    <div className="bg-white border rounded-lg p-4 flex items-start justify-between">
+    <div className="bg-white border rounded-xl p-4 flex items-start justify-between">
       <div>
         <p className="text-xs text-gray-500">{label}</p>
         <p className="text-2xl font-bold text-gray-900 mt-0.5">{value}</p>
@@ -285,7 +285,7 @@ export default function ReceptionPanel() {
 
   return (
     <DashboardLayout>
-      <div className="p-6 space-y-6 max-w-4xl">
+      <div className="p-6 space-y-6">
         {/* Header */}
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
@@ -312,7 +312,7 @@ export default function ReceptionPanel() {
               />
             </div>
             {stats.birthdaysToday.length > 0 && (
-              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5 text-sm text-amber-800">
+              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-sm text-amber-800">
                 <Gift className="h-4 w-4 shrink-0" />
                 <span>
                   Aniversário hoje: <span className="font-medium">{stats.birthdaysToday.map(b => b.name).join(", ")}</span>
@@ -449,7 +449,7 @@ export default function ReceptionPanel() {
                     return (
                       <div
                         key={b.id}
-                        className={`flex items-center gap-3 px-3 py-1.5 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors ${isPast && isToday ? "opacity-60" : ""}`}
+                        className={`flex items-center gap-3 px-3 py-1.5 border rounded-xl cursor-pointer hover:bg-gray-50 transition-colors ${isPast && isToday ? "opacity-60" : ""}`}
                         onClick={() => setSelectedBooking(b)}
                       >
                         <div className="flex-shrink-0 w-16 text-center">
