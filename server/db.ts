@@ -1386,7 +1386,7 @@ export async function getReceptionDashboardStats(tenantId: number) {
   const db = await getDb();
   if (!db) {
     return {
-      bookingsToday: 0, confirmedToday: 0, completedToday: 0, cancelledToday: 0, noShowToday: 0,
+      bookingsToday: 0, confirmedUpcoming: 0, completedToday: 0, cancelledToday: 0, noShowToday: 0,
       roomsOccupiedNow: 0, totalRooms: 0, nextBooking: null, birthdaysToday: [],
     };
   }
@@ -1416,10 +1416,20 @@ export async function getReceptionDashboardStats(tenantId: number) {
       lte(bookings.startTime, endOfDay),
     ));
 
-  const confirmedToday = todayRows.filter(r => r.status === 'confirmed').length;
   const completedToday = todayRows.filter(r => r.status === 'completed').length;
   const cancelledToday = todayRows.filter(r => r.status === 'canceled_with_credit').length;
   const noShowToday = todayRows.filter(r => r.status === 'no_show').length;
+
+  // "Confirmadas" conta todas as reservas futuras (não só as de hoje) — a
+  // recepção quer ver o total de compromissos garantidos à frente, não
+  // apenas o corte do dia.
+  const [{ count: confirmedUpcoming }] = await db.select({ count: sql<number>`count(*)::int` })
+    .from(bookings)
+    .where(and(
+      eq(bookings.tenantId, tenantId),
+      eq(bookings.status, 'confirmed'),
+      gte(bookings.startTime, now),
+    ));
 
   const roomsOccupiedNow = new Set(
     todayRows
@@ -1453,7 +1463,7 @@ export async function getReceptionDashboardStats(tenantId: number) {
 
   return {
     bookingsToday: todayRows.length,
-    confirmedToday,
+    confirmedUpcoming,
     completedToday,
     cancelledToday,
     noShowToday,
