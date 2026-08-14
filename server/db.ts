@@ -1392,8 +1392,14 @@ export async function getReceptionDashboardStats(tenantId: number) {
   }
 
   const now = new Date();
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  // "Hoje" precisa ser calculado no horário de Brasília, não no timezone do
+  // servidor (UTC no Railway) — senão, à noite (quando UTC já virou o dia
+  // seguinte em relação a São Paulo), este "hoje" ficava um dia à frente do
+  // "hoje" usado pela lista de reservas (reception.bookings), que já usa
+  // America/Sao_Paulo corretamente.
+  const todayStr = now.toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+  const startOfDay = new Date(`${todayStr}T00:00:00-03:00`);
+  const endOfDay = new Date(`${todayStr}T23:59:59-03:00`);
 
   const todayRows = await db.select({
     id: bookings.id,

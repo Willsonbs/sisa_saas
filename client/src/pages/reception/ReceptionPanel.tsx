@@ -300,7 +300,7 @@ export default function ReceptionPanel() {
           <div className="space-y-3">
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
               <StatCard icon={CalendarDays} label="Reservas Hoje" value={stats.bookingsToday} color="brown" />
-              <StatCard icon={CheckCircle2} label="Confirmadas Hoje" value={stats.confirmedToday} color="green" />
+              <StatCard icon={CheckCircle2} label="Confirmadas" value={stats.confirmedToday} color="green" />
               <StatCard icon={DoorOpen} label="Salas Ocupadas" value={`${stats.roomsOccupiedNow}/${stats.totalRooms}`} sub="agora" color="blue" />
               <StatCard icon={XCircle} label="No-show / Cancel." value={stats.noShowToday + stats.cancelledToday} sub="hoje" color="red" />
               <StatCard
