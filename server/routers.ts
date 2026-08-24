@@ -855,6 +855,159 @@ export const appRouter = router({
         return { url: session.url, sessionId: session.id, bookingId, totalPrice };
       }),
 
+    // Recepção cria uma reserva em nome de um profissional (ex: profissional
+    // liga pedindo pra recepção reservar). Não mexe no saldo de créditos do
+    // profissional — o pagamento é combinado à parte (PIX manual, fora do
+    // sistema), pra não abrir margem pro profissional alegar que a recepção
+    // usou crédito sem autorização. A reserva fica 'pending_payment' (já
+    // trava o horário, igual ao fluxo de pagamento via Stripe) até alguém
+    // da equipe confirmar manualmente que o PIX caiu (ver confirmManualPayment).
+    createForProfessional: receptionistProcedure
+      .input(z.object({
+        professionalId: z.number(),
+        roomId: z.number(),
+        patientName: z.string().optional(),
+        patientPhone: z.string().optional(),
+        startTime: z.date(),
+        endTime: z.date(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const tenantId = ctx.auth.tenantId;
+
+        if (input.startTime <= new Date()) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Não é possível reservar em data ou horário no passado.' });
+        }
+
+        // SECURITY: garante que o profissional pertence a este tenant
+        const dbConn = await db.getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB unavailable' });
+        const { professionalTenants } = await import('../drizzle/schema');
+        const { eq: eqOp, and: andOp } = await import('drizzle-orm');
+        const link = await dbConn.select({ id: professionalTenants.id })
+          .from(professionalTenants)
+          .where(andOp(eqOp(professionalTenants.professionalId, input.professionalId), eqOp(professionalTenants.tenantId, tenantId)))
+          .limit(1);
+        if (link.length === 0) throw new TRPCError({ code: 'FORBIDDEN', message: 'Profissional não pertence a este tenant.' });
+
+        const professional = await db.getUserById(input.professionalId);
+        if (!professional) throw new TRPCError({ code: 'NOT_FOUND', message: 'Profissional não encontrado.' });
+
+        const room = await db.getRoomById(input.roomId, tenantId);
+        if (!room || !room.isActive) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Sala não disponível.' });
+        }
+        assertRoomOpenForSlot(room, input.startTime, input.endTime);
+
+        const hasConflict = await db.checkBookingConflict(input.roomId, input.startTime, input.endTime);
+        if (hasConflict) {
+          throw new TRPCError({ code: 'CONFLICT', message: 'Esse horário acabou de ser reservado. Escolha outro horário disponível.' });
+        }
+        const hasBlockConflict = await db.checkRoomBlockConflict(input.roomId, input.startTime, input.endTime);
+        if (hasBlockConflict) {
+          throw new TRPCError({ code: 'CONFLICT', message: 'Esta sala está bloqueada neste horário (manutenção ou bloqueio pelo gestor). Escolha outro horário.' });
+        }
+
+        const durationMs = input.endTime.getTime() - input.startTime.getTime();
+        const durationHours = durationMs / (1000 * 60 * 60);
+        const totalPrice = Math.ceil(durationHours * room.pricePerHour);
+
+        const bufferStartTime = new Date(input.startTime.getTime() - (room.bufferBefore || 0) * 60000);
+        const bufferEndTime = new Date(input.endTime.getTime() + (room.bufferAfter || 0) * 60000);
+
+        const bookingResult = await db.createBooking({
+          roomId: input.roomId,
+          tenantId,
+          professionalId: input.professionalId,
+          patientName: input.patientName ? (encrypt(input.patientName) ?? input.patientName) : null,
+          patientPhone: encrypt(input.patientPhone || null),
+          startTime: input.startTime,
+          endTime: input.endTime,
+          bufferStartTime,
+          bufferEndTime,
+          totalPrice,
+          status: 'pending_payment',
+          receptionNotes: `Reserva criada pela recepção (${ctx.auth.name || ctx.auth.email}) em nome do profissional.`,
+        });
+        const bookingId = (bookingResult as any)?.insertId;
+
+        const paymentResult = await db.createPayment({
+          professionalId: input.professionalId,
+          tenantId,
+          amount: totalPrice,
+          method: 'manual',
+          status: 'pending',
+          metadata: JSON.stringify({ bookingId, type: 'booking_payment', createdByStaffId: ctx.auth.id }),
+        });
+        const paymentId = (paymentResult as any)?.insertId;
+        if (bookingId && paymentId) {
+          await db.updateBooking(bookingId, { paymentId });
+        }
+
+        await db.createAuditLog({
+          tenantId,
+          userId: ctx.auth.id,
+          userEmail: ctx.auth.email,
+          action: 'booking.create_for_professional',
+          entityType: 'booking',
+          entityId: bookingId,
+          after: JSON.stringify({ professionalId: input.professionalId, roomId: input.roomId, startTime: input.startTime, totalPrice }),
+        });
+
+        await db.createNotification({
+          userId: input.professionalId,
+          tenantId,
+          type: 'general',
+          title: 'Reserva criada pela recepção — aguardando pagamento',
+          message: `${room.name}, ${input.startTime.toLocaleDateString('pt-BR')} às ${input.startTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}. Valor: ${(totalPrice / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`,
+          bookingId,
+        });
+
+        const tenant = await db.getTenantById(tenantId);
+
+        return { bookingId, totalPrice, pixKey: tenant?.pixKey ?? null, professionalName: professional.name };
+      }),
+
+    // Equipe (recepção ou admin) confirma manualmente que o pagamento PIX de
+    // uma reserva criada por createForProfessional caiu na conta da empresa.
+    confirmManualPayment: receptionistProcedure
+      .input(z.object({ bookingId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const tenantId = ctx.auth.tenantId;
+        const booking = await db.getBookingById(input.bookingId, tenantId);
+        if (!booking) throw new TRPCError({ code: 'NOT_FOUND', message: 'Reserva não encontrada.' });
+        if (booking.status !== 'pending_payment') {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Esta reserva não está aguardando pagamento.' });
+        }
+
+        const before = JSON.stringify({ status: booking.status });
+        await db.updateBooking(input.bookingId, { status: 'confirmed' });
+        if (booking.paymentId) {
+          await db.updatePayment(booking.paymentId, { status: 'paid', paidAt: new Date() });
+        }
+
+        await db.createAuditLog({
+          tenantId,
+          userId: ctx.auth.id,
+          userEmail: ctx.auth.email,
+          action: 'booking.confirm_manual_payment',
+          entityType: 'booking',
+          entityId: input.bookingId,
+          before,
+          after: JSON.stringify({ status: 'confirmed' }),
+        });
+
+        await db.createNotification({
+          userId: booking.professionalId,
+          tenantId,
+          type: 'booking_confirmation',
+          title: 'Reserva confirmada',
+          message: 'Seu pagamento foi confirmado e a reserva está garantida.',
+          bookingId: input.bookingId,
+        });
+
+        return { success: true };
+      }),
+
     cancel: professionalProcedure
       .input(z.object({
         id: z.number(),
@@ -1473,6 +1626,7 @@ export const appRouter = router({
         email: z.string().email().optional(),
         phone: z.string().optional(),
         address: z.string().optional(),
+        pixKey: z.string().optional(),
         cancellationWindowHours: z.number().min(0).max(168).optional(),
         lateArrivalToleranceMinutes: z.number().min(0).max(60).optional(),
       }))
