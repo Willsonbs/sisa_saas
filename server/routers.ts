@@ -1008,21 +1008,32 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    cancel: professionalProcedure
+    // protectedProcedure (não professionalProcedure): recepção/financeiro
+    // também podem cancelar, desde que tenham a permissão
+    // permCanCancelBookings (Configurações > Usuários Internos). Sem essa
+    // permissão, o profissional dono da reserva liga pra recepção pedir
+    // cancelamento e ela não conseguia fazer nada — só admin conseguia.
+    cancel: protectedProcedure
       .input(z.object({
         id: z.number(),
         reason: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
+        const isStaff = ctx.auth.role === 'receptionist' || ctx.auth.role === 'financial';
+        const canStaffCancel = isStaff && Boolean((ctx.user as any)?.permCanCancelBookings);
+        if (ctx.auth.role !== 'admin' && ctx.auth.role !== 'professional' && !canStaffCancel) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Acesso negado' });
+        }
+
         const booking = await db.getBookingById(input.id, ctx.auth.tenantId);
         if (!booking) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Booking not found' });
         }
-        
-        if (ctx.auth.role !== 'admin' && booking.professionalId !== ctx.auth.id) {
+
+        if (ctx.auth.role === 'professional' && booking.professionalId !== ctx.auth.id) {
           throw new TRPCError({ code: 'FORBIDDEN', message: 'Access denied' });
         }
-        
+
         if (booking.status === 'canceled_with_credit') {
           throw new TRPCError({ code: 'BAD_REQUEST', message: 'Already cancelled' });
         }
@@ -1040,17 +1051,33 @@ export const appRouter = router({
         const tenant = await db.getTenantById(booking.tenantId ?? ctx.auth.tenantId);
         const cancellationWindowHours = tenant?.cancellationWindowHours ?? 12;
         const refundPercentage = hoursUntilBooking >= cancellationWindowHours ? 100 : 0;
-
         const refundAmount = Math.floor(booking.totalPrice * (refundPercentage / 100));
-        
+
         await db.updateBooking(input.id, {
           status: 'canceled_with_credit',
           cancelledAt: now,
           cancelledBy: ctx.auth.id,
           cancellationReason: input.reason || null,
         });
-        
-        if (refundAmount > 0) {
+
+        // FINANCEIRO: reembolso automático em crédito só faz sentido pra
+        // reservas pagas com crédito (booking.paymentId nulo — fluxo padrão
+        // via bookings.create). Reservas com paymentId (PIX manual criado
+        // pela recepção, ou Stripe) não debitaram crédito nenhum — creditar
+        // aqui seria dar saldo de graça pro profissional. Nesses casos só
+        // marcamos o pagamento como reembolsado (se já tinha sido pago) pra
+        // fins de registro; o reembolso em si é combinado manualmente fora
+        // do sistema (mesma lógica do pagamento).
+        let refundNote: string | null = null;
+        if (booking.paymentId) {
+          const payment = await db.getPaymentById(booking.paymentId);
+          if (payment?.status === 'paid' && refundAmount > 0) {
+            await db.updatePayment(booking.paymentId, { status: 'refunded', refundedAt: now });
+            refundNote = payment.method === 'manual'
+              ? 'Pagamento foi feito via PIX manual — o reembolso deve ser combinado diretamente com o profissional.'
+              : 'Pagamento foi feito fora do sistema de créditos — o reembolso não é automático.';
+          }
+        } else if (refundAmount > 0) {
           // SECURITY/FINANCEIRO: o reembolso deve ir para o dono original da reserva
           // (booking.professionalId), não para quem executou o cancelamento
           // (ctx.auth.id) — um admin/recepcionista pode cancelar em nome de outro
@@ -1058,7 +1085,7 @@ export const appRouter = router({
           const refundTenantId = booking.tenantId || 1;
           const balance = await db.getCreditBalance(booking.professionalId, refundTenantId);
           const newBalance = balance + refundAmount;
-          
+
           await db.addCredit({
             professionalId: booking.professionalId,
             tenantId: refundTenantId,
@@ -1087,7 +1114,7 @@ export const appRouter = router({
           });
         }
         
-        return { success: true, refundAmount, refundPercentage };
+        return { success: true, refundAmount, refundPercentage, refundNote };
       }),
   }),
 
@@ -2232,6 +2259,7 @@ export const appRouter = router({
           canViewProfessionals: Boolean(r.permCanViewProfessionals),
           canViewRooms: Boolean(r.permCanViewRooms),
           canCheckIn: Boolean(r.permCanCheckIn),
+          canCancelBookings: Boolean(r.permCanCancelBookings),
         },
       }));
     }),
@@ -2247,6 +2275,7 @@ export const appRouter = router({
           canViewProfessionals: z.boolean().default(true),
           canViewRooms: z.boolean().default(true),
           canCheckIn: z.boolean().default(true),
+          canCancelBookings: z.boolean().default(false),
         }),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -2265,6 +2294,7 @@ export const appRouter = router({
           permCanViewProfessionals: input.permissions.canViewProfessionals,
           permCanViewRooms: input.permissions.canViewRooms,
           permCanCheckIn: input.permissions.canCheckIn,
+          permCanCancelBookings: input.permissions.canCancelBookings,
         });
         return { success: true };
       }),
@@ -2280,6 +2310,7 @@ export const appRouter = router({
           canViewProfessionals: z.boolean(),
           canViewRooms: z.boolean(),
           canCheckIn: z.boolean(),
+          canCancelBookings: z.boolean(),
         }).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -2293,6 +2324,7 @@ export const appRouter = router({
           updateData.permCanViewProfessionals = input.permissions.canViewProfessionals;
           updateData.permCanViewRooms = input.permissions.canViewRooms;
           updateData.permCanCheckIn = input.permissions.canCheckIn;
+          updateData.permCanCancelBookings = input.permissions.canCancelBookings;
         }
         await db.updateStaffUser(input.id, tenantId, updateData);
         return { success: true };

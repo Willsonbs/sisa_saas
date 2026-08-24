@@ -27,6 +27,7 @@ type StaffUser = {
     canViewProfessionals: boolean;
     canViewRooms: boolean;
     canCheckIn: boolean;
+    canCancelBookings: boolean;
   };
 };
 
@@ -35,6 +36,7 @@ const PERM_LABELS: { key: keyof StaffUser["permissions"]; label: string; desc: s
   { key: "canViewProfessionals",  label: "Gerenciar Profissionais", desc: "Cadastrar, editar e listar profissionais (mesma tela do administrador)" },
   { key: "canViewRooms",          label: "Ver Salas",            desc: "Consultar salas e disponibilidade" },
   { key: "canCheckIn",            label: "Registrar Check-in",   desc: "Confirmar chegada de pacientes" },
+  { key: "canCancelBookings",     label: "Cancelar Reservas",    desc: "Cancelar reservas de qualquer profissional (inclusive as feitas pela própria recepção)" },
 ];
 
 const DEFAULT_PERMS: StaffUser["permissions"] = {
@@ -42,6 +44,7 @@ const DEFAULT_PERMS: StaffUser["permissions"] = {
   canViewProfessionals: true,
   canViewRooms: true,
   canCheckIn: true,
+  canCancelBookings: false,
 };
 
 export default function TenantSettings() {
