@@ -614,9 +614,12 @@ export async function deleteRoomBlock(id: number) {
 export async function createBooking(booking: InsertBooking) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  const result = await db.insert(bookings).values(booking);
-  return result;
+
+  // Postgres (node-postgres) nao retorna "insertId" (isso e coisa do driver
+  // mysql2) — sem .returning(), result.insertId sempre foi undefined aqui.
+  // Callers que precisam do id da reserva criada devem usar result.id.
+  const [row] = await db.insert(bookings).values(booking).returning({ id: bookings.id });
+  return row;
 }
 
 export async function updateBooking(id: number, data: Partial<InsertBooking>) {
@@ -848,9 +851,11 @@ export async function getCreditHistory(professionalId: number, limit = 50, tenan
 export async function createPayment(payment: InsertPayment) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  const result = await db.insert(payments).values(payment);
-  return result;
+
+  // Ver comentário em createBooking: sem .returning(), não há "insertId" no
+  // driver Postgres. Callers devem usar result.id.
+  const [row] = await db.insert(payments).values(payment).returning({ id: payments.id });
+  return row;
 }
 
 export async function updatePayment(id: number, data: Partial<InsertPayment>) {
