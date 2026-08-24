@@ -54,6 +54,7 @@ export default function TenantSettings() {
     email: "",
     phone: "",
     address: "",
+    pixKey: "",
     cancellationWindowHours: 12,
     lateArrivalToleranceMinutes: 15,
   });
@@ -65,6 +66,7 @@ export default function TenantSettings() {
         email: tenant.email || "",
         phone: tenant.phone || "",
         address: tenant.address || "",
+        pixKey: tenant.pixKey || "",
         cancellationWindowHours: tenant.cancellationWindowHours ?? 12,
         lateArrivalToleranceMinutes: tenant.lateArrivalToleranceMinutes ?? 15,
       });
@@ -158,6 +160,11 @@ export default function TenantSettings() {
                   <div className="space-y-2">
                     <Label>Endereço</Label>
                     <Input value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} placeholder="Rua, número, bairro, cidade" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Chave PIX</Label>
+                    <Input value={form.pixKey} onChange={e => setForm(p => ({ ...p, pixKey: e.target.value }))} placeholder="CPF, CNPJ, e-mail, telefone ou chave aleatória" />
+                    <p className="text-xs text-gray-400">Usada pela recepção para cobrar profissionais em reservas criadas por eles (pagamento manual).</p>
                   </div>
                 </CardContent>
               </Card>

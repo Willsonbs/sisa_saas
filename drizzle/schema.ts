@@ -86,6 +86,7 @@ export const tenants = pgTable("tenants", {
   addressState: varchar("addressState", { length: 2 }),
   addressZip: varchar("addressZip", { length: 10 }),
   address: text("address"),
+  pixKey: varchar("pixKey", { length: 200 }),
   plan: tenantPlanEnum("plan").default("starter").notNull(),
   isActive: boolean("isActive").default(true).notNull(),
   cancellationWindowHours: integer("cancellationWindowHours").default(12).notNull(),

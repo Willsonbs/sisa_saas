@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -103,10 +103,12 @@ function BookingDetailDialog({
   booking,
   onClose,
   onRefresh,
+  pixKey,
 }: {
   booking: any | null;
   onClose: () => void;
   onRefresh: () => void;
+  pixKey?: string | null;
 }) {
   const utils = trpc.useUtils();
   const [cancelReason, setCancelReason] = useState("");
@@ -121,6 +123,10 @@ function BookingDetailDialog({
   });
   const completeMutation = trpc.noShow.complete.useMutation({
     onSuccess: () => { toast.success("Reserva marcada como concluída!"); onRefresh(); onClose(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const confirmPaymentMutation = trpc.bookings.confirmManualPayment.useMutation({
+    onSuccess: () => { toast.success("Pagamento confirmado! Reserva confirmada."); onRefresh(); onClose(); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -151,6 +157,7 @@ function BookingDetailDialog({
   // reserva inteira somem para não conflitar com o status por atendimento.
   const canNoShow = booking.status === "confirmed" && !hasAppointments;
   const canComplete = booking.status === "confirmed" && !hasAppointments;
+  const isPendingPayment = booking.status === "pending_payment";
 
   return (
     <Dialog open={!!booking} onOpenChange={onClose}>
@@ -233,6 +240,28 @@ function BookingDetailDialog({
               <p className="font-medium text-[#3D3D2E]">{formatCurrency(booking.totalPrice)}</p>
             </div>
           </div>
+          {isPendingPayment && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2 text-xs">
+              <p className="font-semibold text-amber-800">Aguardando pagamento manual (PIX)</p>
+              {pixKey ? (
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 bg-white border rounded px-2 py-1 truncate">{pixKey}</code>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs shrink-0"
+                    onClick={() => { navigator.clipboard.writeText(pixKey); toast.success("Chave PIX copiada!"); }}
+                  >
+                    Copiar
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-amber-700">Nenhuma chave PIX cadastrada em Configurações.</p>
+              )}
+              <p className="text-amber-700">Envie a chave e o valor ({formatCurrency(booking.totalPrice)}) para o profissional. Quando o pagamento cair, confirme abaixo.</p>
+            </div>
+          )}
           {booking.receptionNotes && (
             <div className="bg-[#F5F3EF] rounded p-2 text-xs text-[#3D3D2E]">
               <span className="font-semibold">Obs. recepção:</span> {booking.receptionNotes}
@@ -246,6 +275,13 @@ function BookingDetailDialog({
         </div>
 
         <DialogFooter className="flex-col gap-2 sm:flex-row">
+          {isPendingPayment && (
+            <Button size="sm" className="bg-[#5A8A6A] hover:bg-[#4a7658] text-white"
+              onClick={() => confirmPaymentMutation.mutate({ bookingId: booking.id })}
+              disabled={confirmPaymentMutation.isPending}>
+              <CheckCircle2 className="h-4 w-4 mr-1" />Marcar como Paga
+            </Button>
+          )}
           {canComplete && (
             <Button size="sm" className="bg-[#5B8DB8] hover:bg-[#4a7aa5] text-white"
               onClick={() => completeMutation.mutate({ bookingId: booking.id })}
@@ -298,12 +334,170 @@ function BookingDetailDialog({
   );
 }
 
+// ─── Create booking for professional (recepção clica numa célula vazia) ───────
+type Slot = { roomId: number; roomName: string; pricePerHour: number; startTime: Date; endTime: Date };
+
+function CreateBookingDialog({
+  slot,
+  onClose,
+  onCreated,
+  pixKey,
+}: {
+  slot: Slot | null;
+  onClose: () => void;
+  onCreated: () => void;
+  pixKey?: string | null;
+}) {
+  const { data: professionals = [] } = trpc.reception.professionals.useQuery();
+  const [professionalId, setProfessionalId] = useState<string>("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  const [patientName, setPatientName] = useState("");
+  const [result, setResult] = useState<{ bookingId: number; totalPrice: number; professionalName: string } | null>(null);
+
+  useMemo(() => {
+    if (slot) {
+      setStartTime(toLocalInputValue(slot.startTime));
+      setEndTime(toLocalInputValue(new Date(slot.startTime.getTime() + 60 * 60000)));
+      setProfessionalId("");
+      setPatientName("");
+      setResult(null);
+    }
+  }, [slot]);
+
+  const createMutation = trpc.bookings.createForProfessional.useMutation({
+    onSuccess: (data) => {
+      toast.success("Reserva criada! Aguardando pagamento.");
+      setResult({ bookingId: data.bookingId, totalPrice: data.totalPrice, professionalName: data.professionalName || "" });
+      onCreated();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const confirmPaymentMutation = trpc.bookings.confirmManualPayment.useMutation({
+    onSuccess: () => { toast.success("Pagamento confirmado! Reserva confirmada."); onCreated(); onClose(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  if (!slot) return null;
+  const currentSlot = slot;
+
+  const durationHours = (new Date(endTime).getTime() - new Date(startTime).getTime()) / (1000 * 60 * 60);
+  const estimatedPrice = durationHours > 0 ? Math.ceil(durationHours * currentSlot.pricePerHour) : 0;
+
+  function handleSubmit() {
+    if (!professionalId) { toast.error("Selecione o profissional."); return; }
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    if (end <= start) { toast.error("O horário final precisa ser depois do inicial."); return; }
+    createMutation.mutate({
+      professionalId: Number(professionalId),
+      roomId: currentSlot.roomId,
+      startTime: start,
+      endTime: end,
+      patientName: patientName.trim() || undefined,
+    });
+  }
+
+  return (
+    <Dialog open={!!slot} onOpenChange={onClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{result ? "Reserva criada" : `Nova reserva — ${slot.roomName}`}</DialogTitle>
+        </DialogHeader>
+
+        {!result ? (
+          <div className="space-y-3 text-sm">
+            <div className="space-y-2">
+              <Label>Profissional</Label>
+              <Select value={professionalId} onValueChange={setProfessionalId}>
+                <SelectTrigger><SelectValue placeholder="Selecione o profissional" /></SelectTrigger>
+                <SelectContent>
+                  {professionals.map((p: any) => (
+                    <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Início</Label>
+                <Input type="datetime-local" value={startTime} onChange={e => setStartTime(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Fim</Label>
+                <Input type="datetime-local" value={endTime} onChange={e => setEndTime(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Nome do paciente <span className="text-muted-foreground font-normal">(opcional)</span></Label>
+              <Input value={patientName} onChange={e => setPatientName(e.target.value)} placeholder="Se já souber, informe aqui" />
+            </div>
+            {estimatedPrice > 0 && (
+              <p className="text-xs text-muted-foreground">Valor estimado: <span className="font-medium text-[#3D3D2E]">{formatCurrency(estimatedPrice)}</span></p>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-3 text-sm">
+            <p className="text-[#3D3D2E]">
+              Reserva de <span className="font-medium">{result.professionalName}</span> criada, aguardando pagamento.
+            </p>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2 text-xs">
+              <p className="font-semibold text-amber-800">Envie a chave PIX para o profissional</p>
+              {pixKey ? (
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 bg-white border rounded px-2 py-1 truncate">{pixKey}</code>
+                  <Button
+                    type="button" size="sm" variant="outline" className="h-7 text-xs shrink-0"
+                    onClick={() => { navigator.clipboard.writeText(pixKey); toast.success("Chave PIX copiada!"); }}
+                  >
+                    Copiar
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-amber-700">Nenhuma chave PIX cadastrada em Configurações.</p>
+              )}
+              <p className="text-amber-700">Valor: <span className="font-medium">{formatCurrency(result.totalPrice)}</span></p>
+            </div>
+          </div>
+        )}
+
+        <DialogFooter className="flex-col gap-2 sm:flex-row">
+          {!result ? (
+            <>
+              <Button variant="ghost" size="sm" onClick={onClose}>Cancelar</Button>
+              <Button size="sm" onClick={handleSubmit} disabled={createMutation.isPending} className="bg-[#7C5C4A] hover:bg-[#6a4e3e] text-white">
+                Criar reserva
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" size="sm" onClick={onClose}>Fechar</Button>
+              <Button size="sm" className="bg-[#5A8A6A] hover:bg-[#4a7658] text-white"
+                onClick={() => confirmPaymentMutation.mutate({ bookingId: result.bookingId })}
+                disabled={confirmPaymentMutation.isPending}>
+                Já recebi o PIX — Marcar como Paga
+              </Button>
+            </>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function toLocalInputValue(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function AdminBookings() {
   const today = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
   const [anchor, setAnchor] = useState(today);
   const [roomPage, setRoomPage] = useState(0);
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
+  const { data: tenant } = trpc.tenants.current.useQuery();
 
   const dayStart = useMemo(() => { const d = new Date(anchor); d.setHours(0,0,0,0); return d; }, [anchor]);
   const dayEnd   = useMemo(() => { const d = new Date(anchor); d.setHours(23,59,59,999); return d; }, [anchor]);
@@ -417,9 +611,18 @@ export default function AdminBookings() {
                   {/* Room cells */}
                   {pagedRooms.map(room => {
                     const cellBookings = bookingMap[room.id]?.[hour] ?? [];
+                    const isEmpty = cellBookings.length === 0;
+                    const canCreate = isEmpty && !isPast;
                     return (
                       <div key={room.id}
-                        className="border-r border-[#D8D0C8] last:border-r-0 p-1 space-y-1 min-h-[52px]">
+                        className={`border-r border-[#D8D0C8] last:border-r-0 p-1 space-y-1 min-h-[52px] ${canCreate ? "cursor-pointer hover:bg-[#F5F3EF] transition-colors" : ""}`}
+                        onClick={canCreate ? () => {
+                          const startTime = new Date(anchor);
+                          startTime.setHours(hour, 0, 0, 0);
+                          setSelectedSlot({ roomId: room.id, roomName: room.name, pricePerHour: room.pricePerHour, startTime, endTime: new Date(startTime.getTime() + 60 * 60000) });
+                        } : undefined}
+                        title={canCreate ? "Clique para criar uma reserva neste horário" : undefined}
+                      >
                         {cellBookings.map(b => (
                           <BookingChip key={b.id} booking={b} onClick={() => setSelectedBooking(b)} />
                         ))}
@@ -459,6 +662,15 @@ export default function AdminBookings() {
         booking={selectedBooking}
         onClose={() => setSelectedBooking(null)}
         onRefresh={refetch}
+        pixKey={tenant?.pixKey}
+      />
+
+      {/* Criar reserva em nome de um profissional (célula vazia clicada) */}
+      <CreateBookingDialog
+        slot={selectedSlot}
+        onClose={() => setSelectedSlot(null)}
+        onCreated={refetch}
+        pixKey={tenant?.pixKey}
       />
     </DashboardLayout>
   );
