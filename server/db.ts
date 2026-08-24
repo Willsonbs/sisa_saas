@@ -1284,6 +1284,7 @@ export async function getStaffByTenant(tenantId: number) {
     permCanViewRooms: users.permCanViewRooms,
     permCanCheckIn: users.permCanCheckIn,
     permCanManagePatients: users.permCanManagePatients,
+    permCanCancelBookings: users.permCanCancelBookings,
   })
   .from(users)
   .where(and(
@@ -1303,6 +1304,7 @@ export async function createStaffUser(data: {
   permCanViewProfessionals: boolean;
   permCanViewRooms: boolean;
   permCanCheckIn: boolean;
+  permCanCancelBookings?: boolean;
   // Descontinuado na UI (Configurações > Usuários Internos) — recepcionista
   // nunca precisou editar dados de paciente. Mantido opcional aqui só para
   // não quebrar chamadas antigas; sempre grava false para novos usuários.
@@ -1321,6 +1323,7 @@ export async function createStaffUser(data: {
     permCanViewProfessionals: data.permCanViewProfessionals,
     permCanViewRooms: data.permCanViewRooms,
     permCanCheckIn: data.permCanCheckIn,
+    permCanCancelBookings: data.permCanCancelBookings ?? false,
     permCanManagePatients: data.permCanManagePatients ?? false,
   } as any);
 }
@@ -1334,6 +1337,7 @@ export async function updateStaffUser(id: number, tenantId: number, data: Partia
   permCanViewProfessionals: boolean;
   permCanViewRooms: boolean;
   permCanCheckIn: boolean;
+  permCanCancelBookings: boolean;
   // Descontinuado na UI — ver nota em createStaffUser.
   permCanManagePatients: boolean;
 }>) {

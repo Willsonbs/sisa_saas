@@ -2,7 +2,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import {
   ChevronLeft, ChevronRight, X, CheckCircle2, AlertCircle,
   UserX, Info, Clock, Calendar, MapPin, User, Phone, FileText, Users, Edit2
@@ -31,6 +31,14 @@ const TERRACOTTA    = "#7C5C4A";
 
 const MONTHS_PT = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const DAYS_PT   = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+
+// Remove acentos pra busca mais tolerante (ex: "goncalves" encontra "Gonçalves")
+function normalize(str: string) {
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
 
 // ─── Status ───────────────────────────────────────────────────────────────────
 const STATUS_COLOR: Record<string, string> = {
@@ -114,7 +122,12 @@ function BookingDetailDialog({
   const [cancelReason, setCancelReason] = useState("");
 
   const cancelMutation = trpc.bookings.cancel.useMutation({
-    onSuccess: () => { toast.success("Reserva cancelada!"); onRefresh(); onClose(); },
+    onSuccess: (data) => {
+      toast.success("Reserva cancelada!");
+      if (data.refundNote) toast.info(data.refundNote, { duration: 8000 });
+      onRefresh();
+      onClose();
+    },
     onError: (e) => toast.error(e.message),
   });
   const noShowMutation = trpc.noShow.register.useMutation({
@@ -350,6 +363,9 @@ function CreateBookingDialog({
 }) {
   const { data: professionals = [] } = trpc.reception.professionals.useQuery();
   const [professionalId, setProfessionalId] = useState<string>("");
+  const [professionalSearch, setProfessionalSearch] = useState("");
+  const [showProfSuggestions, setShowProfSuggestions] = useState(false);
+  const profBoxRef = useRef<HTMLDivElement>(null);
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [patientName, setPatientName] = useState("");
@@ -360,10 +376,41 @@ function CreateBookingDialog({
       setStartTime(toLocalInputValue(slot.startTime));
       setEndTime(toLocalInputValue(new Date(slot.startTime.getTime() + 60 * 60000)));
       setProfessionalId("");
+      setProfessionalSearch("");
       setPatientName("");
       setResult(null);
     }
   }, [slot]);
+
+  // Sugestões de profissional por substring (sem diferenciar maiúsculas ou
+  // acentos), pra não depender de rolar uma lista longa — mesma ideia usada
+  // no Painel de Recepção.
+  const profSuggestions = useMemo(() => {
+    if (professionalId || !professionalSearch.trim()) return [];
+    const q = normalize(professionalSearch);
+    return (professionals as any[]).filter(p => normalize(p.name ?? "").includes(q)).slice(0, 8);
+  }, [professionals, professionalSearch, professionalId]);
+
+  function selectProfessional(p: { id: number; name: string }) {
+    setProfessionalId(String(p.id));
+    setProfessionalSearch(p.name);
+    setShowProfSuggestions(false);
+  }
+
+  function clearProfessional() {
+    setProfessionalId("");
+    setProfessionalSearch("");
+  }
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (profBoxRef.current && !profBoxRef.current.contains(e.target as Node)) {
+        setShowProfSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const createMutation = trpc.bookings.createForProfessional.useMutation({
     onSuccess: (data) => {
@@ -400,23 +447,52 @@ function CreateBookingDialog({
 
   return (
     <Dialog open={!!slot} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{result ? "Reserva criada" : `Nova reserva — ${slot.roomName}`}</DialogTitle>
         </DialogHeader>
 
         {!result ? (
           <div className="space-y-3 text-sm">
-            <div className="space-y-2">
+            <div className="space-y-2 relative" ref={profBoxRef}>
               <Label>Profissional</Label>
-              <Select value={professionalId} onValueChange={setProfessionalId}>
-                <SelectTrigger><SelectValue placeholder="Selecione o profissional" /></SelectTrigger>
-                <SelectContent>
-                  {professionals.map((p: any) => (
-                    <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+              <div className="relative">
+                <Input
+                  value={professionalSearch}
+                  onChange={e => {
+                    setProfessionalSearch(e.target.value);
+                    setShowProfSuggestions(true);
+                    if (professionalId) setProfessionalId("");
+                  }}
+                  onFocus={() => setShowProfSuggestions(true)}
+                  placeholder="Digite para buscar o profissional..."
+                  className="pr-9"
+                />
+                {professionalSearch && (
+                  <button
+                    type="button"
+                    onClick={clearProfessional}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    title="Limpar"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              {showProfSuggestions && profSuggestions.length > 0 && (
+                <div className="absolute z-20 w-full bg-white border rounded-lg shadow-lg overflow-hidden max-h-56 overflow-y-auto">
+                  {profSuggestions.map((p: any) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => selectProfessional({ id: p.id, name: p.name ?? "Profissional sem nome" })}
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-[#F5F3EF] flex items-center gap-2"
+                    >
+                      {p.name ?? "Profissional sem nome"}
+                    </button>
                   ))}
-                </SelectContent>
-              </Select>
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
