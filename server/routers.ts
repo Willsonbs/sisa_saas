@@ -799,7 +799,7 @@ export const appRouter = router({
           privateNotes: encrypt(input.privateNotes || null),
         });
 
-        const bookingId = (bookingResult as any)?.insertId;
+        const bookingId = bookingResult?.id;
 
         // Create payment record
         const paymentResult = await db.createPayment({
@@ -836,7 +836,7 @@ export const appRouter = router({
               professionalId: ctx.auth.id.toString(),
               tenantId: tenantId.toString(),
               bookingId: bookingId?.toString() || '',
-              paymentRecordId: (paymentResult as any)?.insertId?.toString() || '',
+              paymentRecordId: paymentResult?.id?.toString() || '',
               type: 'booking_payment',
             },
           });
@@ -928,7 +928,7 @@ export const appRouter = router({
           status: 'pending_payment',
           receptionNotes: `Reserva criada pela recepção (${ctx.auth.name || ctx.auth.email}) em nome do profissional.`,
         });
-        const bookingId = (bookingResult as any)?.insertId;
+        const bookingId = bookingResult?.id;
 
         const paymentResult = await db.createPayment({
           professionalId: input.professionalId,
@@ -938,7 +938,7 @@ export const appRouter = router({
           status: 'pending',
           metadata: JSON.stringify({ bookingId, type: 'booking_payment', createdByStaffId: ctx.auth.id }),
         });
-        const paymentId = (paymentResult as any)?.insertId;
+        const paymentId = paymentResult?.id;
         if (bookingId && paymentId) {
           await db.updateBooking(bookingId, { paymentId });
         }
@@ -1243,7 +1243,7 @@ export const appRouter = router({
               tenantId: tenantId.toString(),
               packageId: pkg.id,
               credits: pkg.credits.toString(),
-              paymentRecordId: (paymentResult as any)?.insertId?.toString() || '',
+              paymentRecordId: paymentResult?.id?.toString() || '',
             },
           });
         };
@@ -1262,9 +1262,8 @@ export const appRouter = router({
         }
 
         // Update payment record with Stripe session ID for tracking
-        const insertResult = paymentResult as any;
-        if (insertResult?.insertId) {
-          await db.updatePayment(insertResult.insertId, {
+        if (paymentResult?.id) {
+          await db.updatePayment(paymentResult.id, {
             stripePaymentIntentId: session.id, // store session ID for now, will be updated with payment_intent on webhook
           });
         }
