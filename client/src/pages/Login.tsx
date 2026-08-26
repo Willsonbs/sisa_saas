@@ -1,14 +1,20 @@
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
-import { Eye, EyeOff, ArrowLeft } from "lucide-react";
+import { Eye, EyeOff, ArrowLeft, CalendarClock, Zap, QrCode, BarChart3 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useLocation, Link } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Logo } from "@/components/Logo";
+
+const FEATURES = [
+  { icon: CalendarClock, title: "Agenda por Sala", desc: "Ocupação em tempo real" },
+  { icon: Zap,           title: "Reserva Rápida",  desc: "Poucos cliques pra reservar" },
+  { icon: QrCode,        title: "Créditos & PIX",  desc: "Pagamento flexível" },
+  { icon: BarChart3,     title: "Relatórios",      desc: "Ocupação e receita por sala" },
+];
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -67,38 +73,23 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[#F5F3EF] p-4"
-      style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+    <div className="min-h-screen flex" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+      {/* Coluna do formulário */}
+      <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-20 py-10 bg-white">
+        <div className="w-full max-w-sm mx-auto">
+          <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-[#6B6560] hover:text-[#3D3D2E] transition-colors mb-8">
+            <ArrowLeft className="h-4 w-4" />
+            Voltar ao início
+          </Link>
 
-      {/* Back to home */}
-      <div className="w-full max-w-md mb-4">
-        <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-[#6B6560] hover:text-[#3D3D2E] transition-colors">
-          <ArrowLeft className="h-4 w-4" />
-          Voltar ao início
-        </Link>
-      </div>
+          <div className="flex items-center gap-2.5 mb-10">
+            <Logo className="h-9 w-9" />
+            <span className="font-bold text-xl text-[#3D3D2E]">SISA</span>
+          </div>
 
-      {/* Header */}
-      <div className="mb-8 text-center">
-        <div className="inline-flex items-center gap-3 mb-4">
-          <Logo className="h-12 w-12" />
-          <h1 className="font-bold text-2xl text-[#3D3D2E]">SISA</h1>
-        </div>
-        <p className="text-[#6B6560]">Sistema de Gerenciamento de Salas</p>
-      </div>
-
-      {/* Login Card */}
-      <Card className="w-full max-w-md border-0 shadow-lg">
-        <CardHeader>
-          <CardTitle className="text-[#3D3D2E]">Entrar no Sistema</CardTitle>
-          <CardDescription>
-            Digite seu email e senha para acessar sua conta
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-[#3D3D2E]">Email</Label>
+              <Label htmlFor="email" className="text-[#3D3D2E]">E-mail</Label>
               <Input
                 id="email"
                 type="email"
@@ -144,7 +135,7 @@ export default function Login() {
           </form>
 
           {/* Divider */}
-          <div className="relative">
+          <div className="relative my-5">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-[#E8E4DF]" />
             </div>
@@ -175,7 +166,7 @@ export default function Login() {
           </div>
 
           {/* Demo credentials */}
-          <div className="rounded-lg bg-[#C8C8E8]/30 border border-[#C8C8E8] p-4 space-y-3">
+          <div className="mt-6 rounded-lg bg-[#C8C8E8]/30 border border-[#C8C8E8] p-4 space-y-3">
             <p className="text-xs font-semibold text-[#3D3D2E] uppercase tracking-wide">Acesso de demonstração</p>
             <div className="space-y-2">
               <button
@@ -207,8 +198,39 @@ export default function Login() {
             </div>
             <p className="text-xs text-[#6B6560]">Clique em uma opção para preencher automaticamente</p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
+
+      {/* Coluna de marca — some em telas pequenas */}
+      <div
+        className="hidden lg:flex flex-1 flex-col justify-center px-16 relative overflow-hidden"
+        style={{ background: "linear-gradient(135deg, #1A1A14 0%, #3D3D2E 55%, #7C5C4A 130%)" }}
+      >
+        <div className="relative z-10 max-w-md">
+          <span className="inline-flex items-center gap-2 text-xs text-[#C8C4BE] bg-white/10 border border-white/10 rounded-full px-3 py-1 mb-8">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            Sistema em funcionamento
+          </span>
+
+          <h1 className="text-4xl font-bold text-white leading-tight mb-5">
+            Gestão de salas<br />pensada para<br /><span className="text-[#D8C8E8]">quem cuida</span>
+          </h1>
+
+          <p className="text-[#C8C4BE] text-base mb-10">
+            Agenda, reservas, créditos e relatórios em um só lugar. Menos burocracia, mais tempo para o seu consultório.
+          </p>
+
+          <div className="grid grid-cols-2 gap-3">
+            {FEATURES.map(({ icon: Icon, title, desc }) => (
+              <div key={title} className="bg-white/10 border border-white/10 rounded-xl p-4">
+                <Icon className="h-4 w-4 text-[#D8C8E8] mb-2" />
+                <p className="text-sm font-semibold text-white">{title}</p>
+                <p className="text-xs text-[#C8C4BE] mt-0.5">{desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
