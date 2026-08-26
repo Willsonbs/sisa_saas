@@ -861,8 +861,25 @@ export async function createPayment(payment: InsertPayment) {
 export async function updatePayment(id: number, data: Partial<InsertPayment>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
+
   await db.update(payments).set(data).where(eq(payments.id, id));
+}
+
+// Hard delete usado só pra desfazer uma reserva/pagamento criados no meio de
+// um fluxo de checkout externo (Stripe) que falhou antes do cliente ser
+// redirecionado — nesse ponto nada foi cobrado e a reserva nunca existiu do
+// ponto de vista do profissional, então não faz sentido deixar um registro
+// 'pending_payment' travando o horário pra sempre.
+export async function deleteBooking(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(bookings).where(eq(bookings.id, id));
+}
+
+export async function deletePayment(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(payments).where(eq(payments.id, id));
 }
 
 export async function getPaymentById(id: number) {
