@@ -7,7 +7,6 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import { ChevronLeft, ChevronRight, CalendarDays, ChevronDown } from "lucide-react";
-import { ResumePaymentDialog } from "@/components/ResumePaymentDialog";
 import { toast } from "sonner";
 import { DayPicker } from "react-day-picker";
 import { ptBR } from "date-fns/locale";
@@ -214,7 +213,6 @@ export default function Rooms() {
     return d;
   });
   const [roomPage, setRoomPage] = useState(0);
-  const [resumeBooking, setResumeBooking] = useState<{ id: number; totalPrice: number } | null>(null);
   const [cancelBookingId, setCancelBookingId] = useState<number | null>(null);
 
   // Estabilizar a data para evitar re-fetches infinitos
@@ -359,10 +357,10 @@ export default function Rooms() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pagedRooms, occupiedSlots, blockedSlots, currentDate, myUserId]);
 
-  function handleSlotClick(roomId: number, hour: number, bookingId?: number, totalPrice?: number) {
+  function handleSlotClick(roomId: number, hour: number, bookingId?: number) {
     const type = getHourSlotType(roomId, hour);
     if (type === "my_pending" && bookingId) {
-      setResumeBooking({ id: bookingId, totalPrice: totalPrice ?? 0 });
+      navigate(`/rooms/${roomId}/book?bookingId=${bookingId}`);
       return;
     }
     if (type === "my_booking" && bookingId) {
@@ -523,7 +521,7 @@ export default function Rooms() {
                           rowSpan={cell.rowSpan}
                           startMins={cell.startMins}
                           endMins={cell.endMins}
-                          onClick={() => handleSlotClick(room.id, hour, cell.bookingId, cell.totalPrice)}
+                          onClick={() => handleSlotClick(room.id, hour, cell.bookingId)}
                         />
                       );
                     })}
@@ -568,12 +566,6 @@ export default function Rooms() {
         )}
       </div>
 
-      <ResumePaymentDialog
-        bookingId={resumeBooking?.id ?? null}
-        totalPrice={resumeBooking?.totalPrice}
-        onClose={() => setResumeBooking(null)}
-        onConfirmed={() => refetchAvailability()}
-      />
       <CancelBookingDialog
         bookingId={cancelBookingId}
         onClose={() => setCancelBookingId(null)}
