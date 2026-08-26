@@ -3,7 +3,11 @@ import { useLocation } from "wouter";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
+} from "@/components/ui/dialog";
 import { ChevronLeft, ChevronRight, CalendarDays, ChevronDown } from "lucide-react";
+import { ResumePaymentDialog } from "@/components/ResumePaymentDialog";
 import { toast } from "sonner";
 import { DayPicker } from "react-day-picker";
 import { ptBR } from "date-fns/locale";
@@ -54,13 +58,14 @@ function dateLabel(d: Date) {
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
-type SlotType = "free" | "booking" | "maintenance" | "admin_block" | "my_booking" | "past" | "closed";
+type SlotType = "free" | "booking" | "maintenance" | "admin_block" | "my_booking" | "my_pending" | "past" | "closed";
 
 interface OccupiedBlock {
   roomId: number;
   startMins: number;
   endMins: number;
   type: SlotType;
+  bookingId?: number;
 }
 
 function slotBg(type: SlotType): string {
@@ -70,6 +75,7 @@ function slotBg(type: SlotType): string {
     case "maintenance": return "#FFFBEB";
     case "admin_block": return "#F8FAFC";
     case "my_booking":  return "#EFF6FF";
+    case "my_pending":  return "#FFEDD5";
     case "past":        return "#F3F4F6";
     case "closed":      return "#F3F4F6";
   }
@@ -81,6 +87,7 @@ function slotBorder(type: SlotType): string {
     case "maintenance": return "#FDE68A";
     case "admin_block": return "#CBD5E1";
     case "my_booking":  return "#BFDBFE";
+    case "my_pending":  return "#FED7AA";
     case "past":        return "transparent";
     case "closed":      return "transparent";
   }
@@ -92,6 +99,7 @@ function slotTextColor(type: SlotType): string {
     case "maintenance": return "#B45309";
     case "admin_block": return "#64748B";
     case "my_booking":  return "#1D4ED8";
+    case "my_pending":  return "#C2410C";
     case "past":        return "#D1D5DB";
     case "closed":      return "#9CA3AF";
   }
@@ -103,6 +111,7 @@ function slotLabel(type: SlotType): string {
     case "maintenance": return "Manutenção";
     case "admin_block": return "Bloqueado";
     case "my_booking":  return "Minha reserva";
+    case "my_pending":  return "Aguard. pagamento";
     case "past":        return "";
     case "closed":      return "Fechado";
   }
@@ -158,6 +167,7 @@ function DatePickerPopover({ date, onChange }: { date: Date; onChange: (d: Date)
 const LEGEND_ITEMS: { type: SlotType; label: string }[] = [
   { type: "free",        label: "Disponível" },
   { type: "my_booking",  label: "Minha reserva" },
+  { type: "my_pending",  label: "Aguardando pagamento" },
   { type: "booking",     label: "Ocupado" },
   { type: "maintenance", label: "Manutenção" },
   { type: "admin_block", label: "Bloqueado" },
@@ -203,6 +213,8 @@ export default function Rooms() {
     return d;
   });
   const [roomPage, setRoomPage] = useState(0);
+  const [resumeBookingId, setResumeBookingId] = useState<number | null>(null);
+  const [cancelBookingId, setCancelBookingId] = useState<number | null>(null);
 
   // Estabilizar a data para evitar re-fetches infinitos
   const queryDate = useMemo(() => {
@@ -212,7 +224,7 @@ export default function Rooms() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentDate.toDateString()]);
 
-  const { data, isLoading } = trpc.rooms.availability.useQuery({ date: queryDate });
+  const { data, isLoading, refetch: refetchAvailability } = trpc.rooms.availability.useQuery({ date: queryDate });
   const { data: myBookings } = trpc.bookings.list.useQuery();
   const { data: me } = trpc.auth.me.useQuery();
   const myUserId = (me as any)?.id;
@@ -254,11 +266,15 @@ export default function Rooms() {
       const e = new Date(bk.endTime);
       if (!isSameDay(s, day) && !isSameDay(e, day) && !(s < day && e > dayStart)) continue;
       const isMyBooking = bk.professionalId === myUserId;
+      const type: SlotType = isMyBooking
+        ? (bk.status === "pending_payment" ? "my_pending" : "my_booking")
+        : "booking";
       blocks.push({
         roomId,
         startMins: s.getHours() * 60 + s.getMinutes(),
         endMins:   e.getHours() * 60 + e.getMinutes(),
-        type: isMyBooking ? "my_booking" : "booking",
+        type,
+        bookingId: isMyBooking ? bk.id : undefined,
       });
     }
 
@@ -293,12 +309,12 @@ export default function Rooms() {
   const roomSpans = useMemo(() => {
     const map: Record<
       number,
-      { type: SlotType; rowSpan: number; render: boolean; startMins?: number; endMins?: number }[]
+      { type: SlotType; rowSpan: number; render: boolean; startMins?: number; endMins?: number; bookingId?: number }[]
     > = {};
 
     for (const room of pagedRooms) {
       const blocks = getOccupiedBlocks(room.id);
-      const spans: { type: SlotType; rowSpan: number; render: boolean; startMins?: number; endMins?: number }[] = [];
+      const spans: { type: SlotType; rowSpan: number; render: boolean; startMins?: number; endMins?: number; bookingId?: number }[] = [];
       let i = 0;
 
       while (i < hours.length) {
@@ -325,6 +341,7 @@ export default function Rooms() {
           render: true,
           startMins: activeBlock?.startMins,
           endMins: activeBlock?.endMins,
+          bookingId: activeBlock?.bookingId,
         });
         for (let k = 1; k < span; k++) {
           spans.push({ type, rowSpan: 0, render: false });
@@ -339,13 +356,22 @@ export default function Rooms() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pagedRooms, occupiedSlots, blockedSlots, currentDate, myUserId]);
 
-  function handleSlotClick(roomId: number, hour: number) {
+  function handleSlotClick(roomId: number, hour: number, bookingId?: number) {
     const type = getHourSlotType(roomId, hour);
+    if (type === "my_pending" && bookingId) {
+      setResumeBookingId(bookingId);
+      return;
+    }
+    if (type === "my_booking" && bookingId) {
+      setCancelBookingId(bookingId);
+      return;
+    }
     if (type !== "free") {
       const msgs: Record<SlotType, string> = {
         free:        "",
         booking:     "Esse horário já está ocupado por outro profissional.",
         my_booking:  "Você já tem uma reserva neste horário.",
+        my_pending:  "",
         maintenance: "Sala em manutenção neste horário.",
         admin_block: "Horário bloqueado pelo gestor.",
         past:        "Não é possível reservar horários no passado.",
@@ -494,7 +520,7 @@ export default function Rooms() {
                           rowSpan={cell.rowSpan}
                           startMins={cell.startMins}
                           endMins={cell.endMins}
-                          onClick={() => handleSlotClick(room.id, hour)}
+                          onClick={() => handleSlotClick(room.id, hour, cell.bookingId)}
                         />
                       );
                     })}
@@ -538,7 +564,45 @@ export default function Rooms() {
           </p>
         )}
       </div>
+
+      <ResumePaymentDialog bookingId={resumeBookingId} onClose={() => setResumeBookingId(null)} />
+      <CancelBookingDialog
+        bookingId={cancelBookingId}
+        onClose={() => setCancelBookingId(null)}
+        onCancelled={() => refetchAvailability()}
+      />
     </DashboardLayout>
+  );
+}
+
+// ─── Cancelar reserva confirmada direto da grade ───────────────────────────────
+
+function CancelBookingDialog({ bookingId, onClose, onCancelled }: { bookingId: number | null; onClose: () => void; onCancelled: () => void }) {
+  const cancelMutation = trpc.bookings.cancel.useMutation({
+    onSuccess: () => { toast.success("Reserva cancelada."); onCancelled(); onClose(); },
+    onError: (err) => toast.error(err.message),
+  });
+
+  return (
+    <Dialog open={!!bookingId} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Cancelar reserva</DialogTitle>
+          <DialogDescription>O reembolso (se houver) segue a política de cancelamento configurada.</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="ghost" size="sm" onClick={onClose} disabled={cancelMutation.isPending}>Voltar</Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            disabled={cancelMutation.isPending}
+            onClick={() => bookingId && cancelMutation.mutate({ id: bookingId })}
+          >
+            Confirmar cancelamento
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -563,6 +627,10 @@ function HourCell({
   const isPast = type === "past";
   const isClosed = type === "closed";
   const isDisabled = isPast || isClosed;
+  // "Minha reserva" e "Aguardando pagamento" também são clicáveis (abrem
+  // cancelamento ou retomam o checkout), diferente de ocupado/bloqueado por
+  // outra pessoa, que só mostra um aviso.
+  const isActionable = type === "my_booking" || type === "my_pending";
 
   const bg = hovered && isFree ? CELL_FREE_HOVER : slotBg(type);
 
@@ -579,7 +647,7 @@ function HourCell({
       className="border-b border-r align-middle px-1 py-0.5 transition-colors"
       style={{
         background: bg,
-        cursor: isDisabled ? "default" : isFree ? "pointer" : "not-allowed",
+        cursor: isDisabled ? "default" : isFree || isActionable ? "pointer" : "not-allowed",
         opacity: isDisabled ? 0.5 : 1,
       }}
       onClick={isDisabled ? undefined : onClick}
@@ -592,6 +660,10 @@ function HourCell({
           ? "Sala fechada neste dia/horário"
           : isFree
           ? "Clique para reservar"
+          : type === "my_pending"
+          ? "Clique para concluir o pagamento"
+          : type === "my_booking"
+          ? "Clique para cancelar"
           : rangeLabel
           ? `${slotLabel(type)} ${rangeLabel}`
           : slotLabel(type)
