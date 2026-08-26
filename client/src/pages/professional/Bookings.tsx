@@ -73,7 +73,7 @@ function BookingDetailDialog({
   onClose: () => void;
   onRefresh: () => void;
   cancellationWindowMs: number;
-  onResumePayment: (bookingId: number) => void;
+  onResumePayment: (bookingId: number, totalPrice: number) => void;
 }) {
   const [cancelReason, setCancelReason] = useState("");
   const cancelMutation = trpc.bookings.cancel.useMutation({
@@ -141,7 +141,7 @@ function BookingDetailDialog({
             <Button
               size="sm"
               className="bg-[#7C5C4A] hover:bg-[#5A3F30] text-white"
-              onClick={() => onResumePayment(booking.id)}
+              onClick={() => onResumePayment(booking.id, booking.totalPrice)}
             >
               Concluir pagamento
             </Button>
@@ -427,7 +427,7 @@ export default function Bookings() {
   const { data: policy } = trpc.bookingPolicy.get.useQuery();
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
-  const [resumeBookingId, setResumeBookingId] = useState<number | null>(null);
+  const [resumeBooking, setResumeBooking] = useState<{ id: number; totalPrice: number } | null>(null);
 
   const toggleExpand = (id: number) => {
     setExpanded(prev => {
@@ -604,9 +604,14 @@ export default function Bookings() {
         onClose={() => setSelectedBooking(null)}
         onRefresh={refetch}
         cancellationWindowMs={cancellationWindowMs}
-        onResumePayment={(id) => { setSelectedBooking(null); setResumeBookingId(id); }}
+        onResumePayment={(id, totalPrice) => { setSelectedBooking(null); setResumeBooking({ id, totalPrice }); }}
       />
-      <ResumePaymentDialog bookingId={resumeBookingId} onClose={() => setResumeBookingId(null)} />
+      <ResumePaymentDialog
+        bookingId={resumeBooking?.id ?? null}
+        totalPrice={resumeBooking?.totalPrice}
+        onClose={() => setResumeBooking(null)}
+        onConfirmed={refetch}
+      />
     </DashboardLayout>
   );
 }

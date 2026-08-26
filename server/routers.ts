@@ -519,6 +519,7 @@ export const appRouter = router({
           // sabia que o horário estava ocupado, nunca sabia se era possível
           // retomar o pagamento.
           status: b.status,
+          totalPrice: b.totalPrice,
           type: 'booking' as const,
         }));
 
@@ -902,6 +903,49 @@ export const appRouter = router({
     // (ex: o profissional fechou a aba do Stripe sem terminar de pagar). Sem
     // isso não havia como voltar a pagar — a única saída era cancelar e
     // reservar tudo de novo, mesmo com o horário ainda garantido.
+    // Confirma uma reserva 'pending_payment' usando saldo de créditos, em vez
+    // de reabrir o checkout do Stripe — mesma opção "Usar créditos" já
+    // disponível ao criar a reserva, só que aplicada a uma que já existe.
+    confirmPendingWithCredits: professionalProcedure
+      .input(z.object({ bookingId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const booking = await db.getBookingById(input.bookingId, ctx.auth.tenantId);
+        if (!booking) throw new TRPCError({ code: 'NOT_FOUND', message: 'Reserva não encontrada.' });
+        if (booking.professionalId !== ctx.auth.id) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Acesso negado.' });
+        }
+        if (booking.status !== 'pending_payment') {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Esta reserva não está aguardando pagamento.' });
+        }
+        if (booking.endTime <= new Date()) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'O horário desta reserva já passou. Cancele e faça uma nova.' });
+        }
+
+        const tenantId = booking.tenantId;
+        const balance = await db.getCreditBalance(ctx.auth.id, tenantId);
+        if (balance < booking.totalPrice) {
+          throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Saldo de créditos insuficiente.' });
+        }
+
+        await db.updateBooking(booking.id, { status: 'confirmed' });
+
+        const newBalance = balance - booking.totalPrice;
+        await db.addCredit({
+          professionalId: ctx.auth.id,
+          tenantId,
+          amount: -booking.totalPrice,
+          type: 'debit',
+          description: `Reserva #${booking.id} (pagamento pendente concluído com créditos)`,
+          balanceAfter: newBalance,
+        });
+
+        // O payment 'pending' criado no fluxo de cartão/PIX não se aplica
+        // mais — a reserva foi paga com créditos, não por ele.
+        if (booking.paymentId) await db.deletePayment(booking.paymentId).catch(() => {});
+
+        return { success: true, newBalance };
+      }),
+
     resumeCheckout: professionalProcedure
       .input(z.object({
         bookingId: z.number(),

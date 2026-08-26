@@ -66,6 +66,7 @@ interface OccupiedBlock {
   endMins: number;
   type: SlotType;
   bookingId?: number;
+  totalPrice?: number;
 }
 
 function slotBg(type: SlotType): string {
@@ -213,7 +214,7 @@ export default function Rooms() {
     return d;
   });
   const [roomPage, setRoomPage] = useState(0);
-  const [resumeBookingId, setResumeBookingId] = useState<number | null>(null);
+  const [resumeBooking, setResumeBooking] = useState<{ id: number; totalPrice: number } | null>(null);
   const [cancelBookingId, setCancelBookingId] = useState<number | null>(null);
 
   // Estabilizar a data para evitar re-fetches infinitos
@@ -275,6 +276,7 @@ export default function Rooms() {
         endMins:   e.getHours() * 60 + e.getMinutes(),
         type,
         bookingId: isMyBooking ? bk.id : undefined,
+        totalPrice: isMyBooking ? bk.totalPrice : undefined,
       });
     }
 
@@ -309,12 +311,12 @@ export default function Rooms() {
   const roomSpans = useMemo(() => {
     const map: Record<
       number,
-      { type: SlotType; rowSpan: number; render: boolean; startMins?: number; endMins?: number; bookingId?: number }[]
+      { type: SlotType; rowSpan: number; render: boolean; startMins?: number; endMins?: number; bookingId?: number; totalPrice?: number }[]
     > = {};
 
     for (const room of pagedRooms) {
       const blocks = getOccupiedBlocks(room.id);
-      const spans: { type: SlotType; rowSpan: number; render: boolean; startMins?: number; endMins?: number; bookingId?: number }[] = [];
+      const spans: { type: SlotType; rowSpan: number; render: boolean; startMins?: number; endMins?: number; bookingId?: number; totalPrice?: number }[] = [];
       let i = 0;
 
       while (i < hours.length) {
@@ -342,6 +344,7 @@ export default function Rooms() {
           startMins: activeBlock?.startMins,
           endMins: activeBlock?.endMins,
           bookingId: activeBlock?.bookingId,
+          totalPrice: activeBlock?.totalPrice,
         });
         for (let k = 1; k < span; k++) {
           spans.push({ type, rowSpan: 0, render: false });
@@ -356,10 +359,10 @@ export default function Rooms() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pagedRooms, occupiedSlots, blockedSlots, currentDate, myUserId]);
 
-  function handleSlotClick(roomId: number, hour: number, bookingId?: number) {
+  function handleSlotClick(roomId: number, hour: number, bookingId?: number, totalPrice?: number) {
     const type = getHourSlotType(roomId, hour);
     if (type === "my_pending" && bookingId) {
-      setResumeBookingId(bookingId);
+      setResumeBooking({ id: bookingId, totalPrice: totalPrice ?? 0 });
       return;
     }
     if (type === "my_booking" && bookingId) {
@@ -520,7 +523,7 @@ export default function Rooms() {
                           rowSpan={cell.rowSpan}
                           startMins={cell.startMins}
                           endMins={cell.endMins}
-                          onClick={() => handleSlotClick(room.id, hour, cell.bookingId)}
+                          onClick={() => handleSlotClick(room.id, hour, cell.bookingId, cell.totalPrice)}
                         />
                       );
                     })}
@@ -565,7 +568,12 @@ export default function Rooms() {
         )}
       </div>
 
-      <ResumePaymentDialog bookingId={resumeBookingId} onClose={() => setResumeBookingId(null)} />
+      <ResumePaymentDialog
+        bookingId={resumeBooking?.id ?? null}
+        totalPrice={resumeBooking?.totalPrice}
+        onClose={() => setResumeBooking(null)}
+        onConfirmed={() => refetchAvailability()}
+      />
       <CancelBookingDialog
         bookingId={cancelBookingId}
         onClose={() => setCancelBookingId(null)}
