@@ -465,8 +465,21 @@ export default function ReceptionPanel() {
                             <span className="text-xs text-gray-500">· {b.professionalSpecialty}</span>
                           )}
                           {b.patientName && (
-                            <span className="flex items-center gap-1 text-gray-600">
+                            <span
+                              className="flex items-center gap-0.5 text-gray-600"
+                              title={
+                                b.appointmentPatientNames.length > 1
+                                  ? `${b.appointmentPatientNames.length} pacientes nesta reserva: ${b.appointmentPatientNames.join(", ")}`
+                                  : undefined
+                              }
+                            >
                               <User className="h-3.5 w-3.5 text-gray-400" />
+                              {/* Um ícone extra em azul pra cada paciente além do primeiro,
+                                  chamando atenção pra reservas com mais de um atendimento —
+                                  sem isso, não dava pra saber olhando a lista. */}
+                              {Array.from({ length: Math.max(b.appointmentPatientNames.length - 1, 0) }).map((_, i) => (
+                                <User key={i} className="h-3.5 w-3.5 text-blue-500" />
+                              ))}
                               {b.patientName}
                             </span>
                           )}
