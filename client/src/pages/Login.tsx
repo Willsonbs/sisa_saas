@@ -75,7 +75,7 @@ export default function Login() {
   return (
     <div className="min-h-screen flex" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
       {/* Coluna do formulário */}
-      <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-20 py-10 bg-white">
+      <div className="lg:flex-[3] flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-16 py-10 bg-white">
         <div className="w-full max-w-sm mx-auto">
           <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-[#6B6560] hover:text-[#3D3D2E] transition-colors mb-8">
             <ArrowLeft className="h-4 w-4" />
@@ -203,7 +203,7 @@ export default function Login() {
 
       {/* Coluna de marca — some em telas pequenas */}
       <div
-        className="hidden lg:flex flex-1 flex-col justify-center px-16 relative overflow-hidden"
+        className="hidden lg:flex lg:flex-[7] flex-col justify-center px-16 relative overflow-hidden"
         style={{ background: "linear-gradient(135deg, #1A1A14 0%, #3D3D2E 55%, #7C5C4A 130%)" }}
       >
         <div className="relative z-10 max-w-md">
