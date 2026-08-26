@@ -317,7 +317,7 @@ export default function BookRoom() {
                         <CreditCard className={`h-5 w-5 flex-shrink-0 ${paymentMode === "stripe" ? "text-primary" : "text-muted-foreground"}`} />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium">Cartão de crédito</p>
-                          <p className="text-xs text-muted-foreground">Checkout seguro via Stripe</p>
+                          <p className="text-xs text-muted-foreground">Checkout seguro online</p>
                         </div>
                       </button>
 
