@@ -123,7 +123,7 @@ export default function CreditsPage() {
             </div>
             {paymentMethod === 'pix' && (
               <p className="text-xs text-amber-600 mt-2">
-                PIX requer conta Stripe com pagamentos brasileiros habilitados. Se não disponível, o sistema redirecionará automaticamente para cartão.
+                PIX pode não estar disponível dependendo da configuração de pagamentos. Se não disponível, o sistema redirecionará automaticamente para cartão.
               </p>
             )}
           </CardContent>
