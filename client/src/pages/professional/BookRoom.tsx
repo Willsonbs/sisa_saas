@@ -304,38 +304,35 @@ export default function BookRoom() {
                         )}
                       </button>
 
-                      {/* Option 2: Card */}
+                      {/* Option 2: Card — visível para demonstração, mas ainda não
+                          habilitada (gateway de pagamento a definir). Clicar não
+                          muda paymentMode nem chama a mutation de checkout, só
+                          avisa que ainda não está disponível. */}
                       <button
                         type="button"
-                        onClick={() => setPaymentMode("stripe")}
-                        className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-colors ${
-                          paymentMode === "stripe"
-                            ? "border-primary bg-primary/5"
-                            : "border-border hover:border-primary/50"
-                        }`}
+                        onClick={() => toast.info("Pagamento com cartão em breve. Por enquanto, use créditos.")}
+                        className="w-full flex items-center gap-3 p-3 rounded-lg border-2 border-border text-left opacity-60 cursor-not-allowed"
                       >
-                        <CreditCard className={`h-5 w-5 flex-shrink-0 ${paymentMode === "stripe" ? "text-primary" : "text-muted-foreground"}`} />
+                        <CreditCard className="h-5 w-5 flex-shrink-0 text-muted-foreground" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium">Cartão de crédito</p>
                           <p className="text-xs text-muted-foreground">Checkout seguro online</p>
                         </div>
+                        <span className="text-[10px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full flex-shrink-0">Em breve</span>
                       </button>
 
-                      {/* Option 3: PIX */}
+                      {/* Option 3: PIX — mesma situação do cartão acima. */}
                       <button
                         type="button"
-                        onClick={() => setPaymentMode("pix")}
-                        className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-colors ${
-                          paymentMode === "pix"
-                            ? "border-primary bg-primary/5"
-                            : "border-border hover:border-primary/50"
-                        }`}
+                        onClick={() => toast.info("Pagamento com PIX em breve. Por enquanto, use créditos.")}
+                        className="w-full flex items-center gap-3 p-3 rounded-lg border-2 border-border text-left opacity-60 cursor-not-allowed"
                       >
-                        <QrCode className={`h-5 w-5 flex-shrink-0 ${paymentMode === "pix" ? "text-primary" : "text-muted-foreground"}`} />
+                        <QrCode className="h-5 w-5 flex-shrink-0 text-muted-foreground" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium">PIX</p>
                           <p className="text-xs text-muted-foreground">Pagamento instantâneo via QR Code</p>
                         </div>
+                        <span className="text-[10px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full flex-shrink-0">Em breve</span>
                       </button>
                     </div>
 

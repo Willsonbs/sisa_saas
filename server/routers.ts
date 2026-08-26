@@ -831,48 +831,65 @@ export const appRouter = router({
           metadata: JSON.stringify({ bookingId, type: 'booking_payment' }),
         });
 
-        const stripe = await import('stripe').then(m => new m.default(process.env.STRIPE_SECRET_KEY!));
         const appUrl = process.env.VITE_APP_URL || 'http://localhost:3000';
         const paymentMethods: ('card' | 'pix')[] = input.paymentMethod === 'pix' ? ['pix'] : ['card'];
 
-        const createSession = async (methods: ('card' | 'pix')[]) =>
-          stripe.checkout.sessions.create({
-            payment_method_types: methods,
-            line_items: [{
-              price_data: {
-                currency: 'brl',
-                product_data: {
-                  name: `Reserva: ${room.name}`,
-                  description: `${input.startTime.toLocaleDateString('pt-BR')} ${input.startTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} - ${input.endTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`,
-                },
-                unit_amount: totalPrice,
-              },
-              quantity: 1,
-            }],
-            mode: 'payment',
-            success_url: `${appUrl}/bookings?payment=success`,
-            cancel_url: `${appUrl}/rooms/${input.roomId}/book?payment=cancelled`,
-            metadata: {
-              professionalId: ctx.auth.id.toString(),
-              tenantId: tenantId.toString(),
-              bookingId: bookingId?.toString() || '',
-              paymentRecordId: paymentResult?.id?.toString() || '',
-              type: 'booking_payment',
-            },
-          });
-
-        let session;
+        // BUG CRÍTICO CORRIGIDO: a reserva e o pagamento (acima) eram criados
+        // ANTES da sessão de checkout do Stripe. Se o Stripe falhasse por
+        // qualquer motivo (ex: STRIPE_SECRET_KEY ausente/inválida — como no
+        // ambiente atual, que não usa gateway de pagamento), o erro subia
+        // sem nenhum rollback: a reserva ficava presa em 'pending_payment'
+        // pra sempre, travando o horário (checkBookingConflict trata esse
+        // status como ocupado) mesmo sem nenhum pagamento ter sido feito ou
+        // sequer tentado. Agora qualquer falha aqui desfaz a reserva e o
+        // pagamento antes de propagar o erro, pra nunca sobrar reserva
+        // "fantasma" sem pagamento associado.
         try {
-          session = await createSession(paymentMethods);
-        } catch (err: any) {
-          if (input.paymentMethod === 'pix' && err?.message?.includes('payment_method_types')) {
-            session = await createSession(['card']);
-          } else {
-            throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: err.message || 'Erro ao criar checkout' });
-          }
-        }
+          const stripe = await import('stripe').then(m => new m.default(process.env.STRIPE_SECRET_KEY!));
 
-        return { url: session.url, sessionId: session.id, bookingId, totalPrice };
+          const createSession = async (methods: ('card' | 'pix')[]) =>
+            stripe.checkout.sessions.create({
+              payment_method_types: methods,
+              line_items: [{
+                price_data: {
+                  currency: 'brl',
+                  product_data: {
+                    name: `Reserva: ${room.name}`,
+                    description: `${input.startTime.toLocaleDateString('pt-BR')} ${input.startTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} - ${input.endTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`,
+                  },
+                  unit_amount: totalPrice,
+                },
+                quantity: 1,
+              }],
+              mode: 'payment',
+              success_url: `${appUrl}/bookings?payment=success`,
+              cancel_url: `${appUrl}/rooms/${input.roomId}/book?payment=cancelled`,
+              metadata: {
+                professionalId: ctx.auth.id.toString(),
+                tenantId: tenantId.toString(),
+                bookingId: bookingId?.toString() || '',
+                paymentRecordId: paymentResult?.id?.toString() || '',
+                type: 'booking_payment',
+              },
+            });
+
+          let session;
+          try {
+            session = await createSession(paymentMethods);
+          } catch (err: any) {
+            if (input.paymentMethod === 'pix' && err?.message?.includes('payment_method_types')) {
+              session = await createSession(['card']);
+            } else {
+              throw err;
+            }
+          }
+
+          return { url: session.url, sessionId: session.id, bookingId, totalPrice };
+        } catch (err: any) {
+          if (paymentResult?.id) await db.deletePayment(paymentResult.id).catch(() => {});
+          if (bookingId) await db.deleteBooking(bookingId).catch(() => {});
+          throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: err.message || 'Erro ao criar checkout' });
+        }
       }),
 
     // Recepção cria uma reserva em nome de um profissional (ex: profissional
