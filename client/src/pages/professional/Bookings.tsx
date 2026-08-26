@@ -8,7 +8,7 @@ import {
   Users, AlertCircle, CheckCircle2, Info, Zap, Trash2, Edit2, Building2,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -24,7 +24,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useState, useMemo } from "react";
-import { ResumePaymentDialog } from "@/components/ResumePaymentDialog";
 
 // ─── Palette ────────────────────────────────────────────────────────────────
 const TERRACOTTA = "#7C5C4A";
@@ -73,7 +72,7 @@ function BookingDetailDialog({
   onClose: () => void;
   onRefresh: () => void;
   cancellationWindowMs: number;
-  onResumePayment: (bookingId: number, totalPrice: number) => void;
+  onResumePayment: (bookingId: number, roomId: number) => void;
 }) {
   const [cancelReason, setCancelReason] = useState("");
   const cancelMutation = trpc.bookings.cancel.useMutation({
@@ -141,7 +140,7 @@ function BookingDetailDialog({
             <Button
               size="sm"
               className="bg-[#7C5C4A] hover:bg-[#5A3F30] text-white"
-              onClick={() => onResumePayment(booking.id, booking.totalPrice)}
+              onClick={() => onResumePayment(booking.id, booking.room?.id)}
             >
               Concluir pagamento
             </Button>
@@ -416,6 +415,7 @@ function AppointmentsPanel({ bookingId, bookingStart, bookingEnd }: {
 
 // ─── Main page ───────────────────────────────────────────────────────────────
 export default function Bookings() {
+  const [, setLocation] = useLocation();
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [roomFilter, setRoomFilter] = useState("all");
@@ -427,7 +427,6 @@ export default function Bookings() {
   const { data: policy } = trpc.bookingPolicy.get.useQuery();
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
-  const [resumeBooking, setResumeBooking] = useState<{ id: number; totalPrice: number } | null>(null);
 
   const toggleExpand = (id: number) => {
     setExpanded(prev => {
@@ -604,13 +603,7 @@ export default function Bookings() {
         onClose={() => setSelectedBooking(null)}
         onRefresh={refetch}
         cancellationWindowMs={cancellationWindowMs}
-        onResumePayment={(id, totalPrice) => { setSelectedBooking(null); setResumeBooking({ id, totalPrice }); }}
-      />
-      <ResumePaymentDialog
-        bookingId={resumeBooking?.id ?? null}
-        totalPrice={resumeBooking?.totalPrice}
-        onClose={() => setResumeBooking(null)}
-        onConfirmed={refetch}
+        onResumePayment={(id, roomId) => { setSelectedBooking(null); if (roomId) setLocation(`/rooms/${roomId}/book?bookingId=${id}`); }}
       />
     </DashboardLayout>
   );

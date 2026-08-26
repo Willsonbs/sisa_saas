@@ -18,6 +18,19 @@ export default function BookRoom() {
   const [, setLocation] = useLocation();
   const roomId = params?.id ? parseInt(params.id) : 0;
 
+  // Quando vem de "Aguard. pagamento" (grade ou Minhas Reservas), a página
+  // abre em modo retomada: mesma tela, mas pra concluir o pagamento de uma
+  // reserva que já existe, em vez de criar uma nova.
+  const resumeBookingId = (() => {
+    const p = new URLSearchParams(window.location.search);
+    const v = p.get("bookingId");
+    return v ? parseInt(v) : null;
+  })();
+  const { data: existingBooking } = trpc.bookings.getById.useQuery(
+    { id: resumeBookingId! },
+    { enabled: !!resumeBookingId }
+  );
+
   // Pré-preencher data/hora a partir dos query params ?start=...&end=...
   const [date, setDate] = useState(() => {
     const p = new URLSearchParams(window.location.search);
@@ -49,7 +62,22 @@ export default function BookRoom() {
     }
     return "";
   });
+  const [patientNameValue, setPatientNameValue] = useState("");
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("credits");
+
+  // Assim que a reserva existente carrega (modo retomada), trava os campos
+  // com os valores dela — não faz sentido editar data/horário/paciente aqui,
+  // só concluir o pagamento.
+  useEffect(() => {
+    if (!existingBooking) return;
+    const s = new Date(existingBooking.startTime);
+    const e = new Date(existingBooking.endTime);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    setDate(`${s.getFullYear()}-${pad(s.getMonth() + 1)}-${pad(s.getDate())}`);
+    setStartTime(`${pad(s.getHours())}:${pad(s.getMinutes())}`);
+    setEndTime(`${pad(e.getHours())}:${pad(e.getMinutes())}`);
+    setPatientNameValue(existingBooking.patientName || "");
+  }, [existingBooking]);
 
   const { data: room, isLoading } = trpc.rooms.getById.useQuery({ id: roomId });
   const { data: balance } = trpc.credits.balance.useQuery();
@@ -83,6 +111,16 @@ export default function BookRoom() {
     },
   });
 
+  const confirmPendingWithCreditsMutation = trpc.bookings.confirmPendingWithCredits.useMutation({
+    onSuccess: () => {
+      toast.success("Reserva confirmada com créditos!");
+      setLocation("/bookings");
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+
   const calculateCost = () => {
     if (!date || !startTime || !endTime || !room) return 0;
     const start = new Date(`${date}T${startTime}`);
@@ -92,11 +130,22 @@ export default function BookRoom() {
     return Math.ceil(room.pricePerHour * hours);
   };
 
-  const cost = calculateCost();
+  const cost = resumeBookingId ? (existingBooking?.totalPrice ?? 0) : calculateCost();
   const hasEnoughCredits = balance !== undefined && balance >= cost && cost > 0;
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    if (resumeBookingId) {
+      // Modo retomada: data/horário/paciente não mudam, só confirma o
+      // pagamento pendente. Cartão/PIX ainda não chamam nada aqui (mesmo
+      // "Em breve" dos botões) — só créditos está funcional.
+      if (paymentMode === "credits") {
+        confirmPendingWithCreditsMutation.mutate({ bookingId: resumeBookingId });
+      }
+      return;
+    }
+
     const formData = new FormData(e.currentTarget);
 
     const dateVal = formData.get("date") as string;
@@ -160,7 +209,7 @@ export default function BookRoom() {
     );
   }
 
-  const isPending = createBookingMutation.isPending || createWithPaymentMutation.isPending;
+  const isPending = createBookingMutation.isPending || createWithPaymentMutation.isPending || confirmPendingWithCreditsMutation.isPending;
 
   return (
     <DashboardLayout>
@@ -170,7 +219,7 @@ export default function BookRoom() {
             <ArrowLeft className="mr-2 h-4 w-4" />
             Voltar
           </Button>
-          <h1 className="text-3xl font-bold mt-4">Reservar Sala</h1>
+          <h1 className="text-3xl font-bold mt-4">{resumeBookingId ? "Concluir Pagamento" : "Reservar Sala"}</h1>
           <p className="text-muted-foreground">{room.name}</p>
         </div>
 
@@ -213,7 +262,9 @@ export default function BookRoom() {
           <Card>
             <CardHeader>
               <CardTitle>Dados da Reserva</CardTitle>
-              <CardDescription>Preencha os detalhes do agendamento</CardDescription>
+              <CardDescription>
+                {resumeBookingId ? "Reserva aguardando pagamento — dados abaixo não podem ser alterados aqui." : "Preencha os detalhes do agendamento"}
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -224,6 +275,7 @@ export default function BookRoom() {
                     name="date"
                     type="date"
                     required
+                    disabled={!!resumeBookingId}
                     min={new Date().toISOString().split("T")[0]}
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
@@ -238,6 +290,7 @@ export default function BookRoom() {
                       name="startTime"
                       type="time"
                       required
+                      disabled={!!resumeBookingId}
                       value={startTime}
                       onChange={(e) => setStartTime(e.target.value)}
                     />
@@ -249,6 +302,7 @@ export default function BookRoom() {
                       name="endTime"
                       type="time"
                       required
+                      disabled={!!resumeBookingId}
                       value={endTime}
                       onChange={(e) => setEndTime(e.target.value)}
                     />
@@ -257,13 +311,22 @@ export default function BookRoom() {
 
                 <div className="space-y-2">
                   <Label htmlFor="patientName">Nome do Paciente *</Label>
-                  <Input id="patientName" name="patientName" required placeholder="Nome completo" />
+                  <Input
+                    id="patientName"
+                    name="patientName"
+                    required={!resumeBookingId}
+                    disabled={!!resumeBookingId}
+                    placeholder="Nome completo"
+                    {...(resumeBookingId ? { value: patientNameValue } : {})}
+                  />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Observações</Label>
-                  <Textarea id="notes" name="notes" rows={2} placeholder="Informações adicionais (opcional)" />
-                </div>
+                {!resumeBookingId && (
+                  <div className="space-y-2">
+                    <Label htmlFor="notes">Observações</Label>
+                    <Textarea id="notes" name="notes" rows={2} placeholder="Informações adicionais (opcional)" />
+                  </div>
+                )}
 
                 {/* Cost Summary */}
                 {cost > 0 && (
@@ -356,6 +419,8 @@ export default function BookRoom() {
                 >
                   {isPending
                     ? "Processando..."
+                    : resumeBookingId
+                    ? `Concluir pagamento · ${formatCurrency(cost)}`
                     : paymentMode === "stripe"
                     ? `Pagar com cartão · ${formatCurrency(cost)}`
                     : paymentMode === "pix"
