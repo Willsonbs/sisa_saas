@@ -91,6 +91,24 @@ export default function Home() {
     }
   }, [isAuthenticated, user, setLocation]);
 
+  // Abre o formulário de cadastro automaticamente quando chega de outra
+  // página (ex: botão "Criar conta de profissional" no Login) pedindo pra
+  // já vir com o formulário aberto.
+  useEffect(() => {
+    if (sessionStorage.getItem('sisa_open_register')) {
+      sessionStorage.removeItem('sisa_open_register');
+      setShowRegisterForm(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (showRegisterForm) {
+      setTimeout(() => {
+        document.getElementById('register')?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
+  }, [showRegisterForm]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F5F3EF]">

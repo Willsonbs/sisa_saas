@@ -22,6 +22,13 @@ import { superAdminRouter } from "./routers/superAdmin";
 // junto com o aceite do usuário no cadastro (users.termsVersion).
 const TERMS_VERSION = "1.0";
 
+// Enquanto o SISA atende só um cliente (Move/On Life), o auto-cadastro de
+// profissional (auth.register, sem convite/admin) vincula direto a este
+// tenant. Quando o produto for vendido pra mais empresas, isso precisa virar
+// uma escolha explícita no cadastro (ex: código de convite da empresa, ou
+// selecionar a empresa numa lista pública) — não dá pra continuar hardcoded.
+const DEFAULT_SIGNUP_TENANT_ID = 1;
+
 // Receptionist procedure (admin or receptionist)
 const receptionistProcedure = protectedProcedure.use(({ ctx, next }) => {
   if (ctx.auth.role !== 'admin' && ctx.auth.role !== 'receptionist') {
@@ -194,7 +201,10 @@ export const appRouter = router({
         const hashedPassword = await hashPassword(input.password);
 
         // Criar usu\u00e1rio
-        await db.createProfessional({
+        // SECURITY: tenantId precisa estar em users pra resolveTenantId
+        // funcionar (sem isso, o profissional cadastrado n\u00e3o consegue nem
+        // logar - toda protectedProcedure lan\u00e7a "conta inv\u00e1lida").
+        const newUser = await db.createProfessional({
           email: input.email,
           password: hashedPassword,
           name: input.name,
@@ -206,9 +216,19 @@ export const appRouter = router({
           loginMethod: 'password',
           termsAcceptedAt: new Date(),
           termsVersion: TERMS_VERSION,
+          tenantId: DEFAULT_SIGNUP_TENANT_ID,
         });
-        
-        return { 
+
+        if (newUser?.id) {
+          await db.createProfessionalTenantLink({
+            professionalId: newUser.id,
+            tenantId: DEFAULT_SIGNUP_TENANT_ID,
+            status: 'approved',
+            approvedAt: new Date(),
+          });
+        }
+
+        return {
           success: true,
           message: 'Cadastro realizado! Fa\u00e7a login para acessar o sistema.'
         };

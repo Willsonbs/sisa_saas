@@ -147,22 +147,17 @@ export default function Login() {
           {/* Register link */}
           <div className="text-center">
             <p className="text-sm text-[#6B6560] mb-2">Ainda não tem uma conta?</p>
-            <Link href="/#register">
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full border-[#7C5C4A] text-[#7C5C4A] hover:bg-[#7C5C4A]/10"
-                onClick={() => {
-                  setLocation('/');
-                  setTimeout(() => {
-                    const el = document.getElementById('register-section');
-                    el?.scrollIntoView({ behavior: 'smooth' });
-                  }, 100);
-                }}
-              >
-                Criar conta de profissional
-              </Button>
-            </Link>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full border-[#7C5C4A] text-[#7C5C4A] hover:bg-[#7C5C4A]/10"
+              onClick={() => {
+                sessionStorage.setItem('sisa_open_register', '1');
+                setLocation('/');
+              }}
+            >
+              Criar conta de profissional
+            </Button>
           </div>
 
           {/* Demo credentials */}
