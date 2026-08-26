@@ -509,10 +509,16 @@ export const appRouter = router({
         const occupiedSlots = (allBookings || []).filter((b: any) =>
           !['cancelled', 'canceled_with_credit', 'no_show'].includes(b.status)
         ).map((b: any) => ({
+          id: b.id,
           roomId: b.roomId,
           startTime: b.startTime,
           endTime: b.endTime,
           professionalId: b.professionalId,
+          // Precisa ir junto pra distinguir "minha reserva confirmada" de
+          // "minha reserva aguardando pagamento" na grade — antes o front só
+          // sabia que o horário estava ocupado, nunca sabia se era possível
+          // retomar o pagamento.
+          status: b.status,
           type: 'booking' as const,
         }));
 
@@ -888,6 +894,99 @@ export const appRouter = router({
         } catch (err: any) {
           if (paymentResult?.id) await db.deletePayment(paymentResult.id).catch(() => {});
           if (bookingId) await db.deleteBooking(bookingId).catch(() => {});
+          throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: err.message || 'Erro ao criar checkout' });
+        }
+      }),
+
+    // Reabre o checkout de uma reserva que já existe e está 'pending_payment'
+    // (ex: o profissional fechou a aba do Stripe sem terminar de pagar). Sem
+    // isso não havia como voltar a pagar — a única saída era cancelar e
+    // reservar tudo de novo, mesmo com o horário ainda garantido.
+    resumeCheckout: professionalProcedure
+      .input(z.object({
+        bookingId: z.number(),
+        paymentMethod: z.enum(['card', 'pix']).optional().default('card'),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const booking = await db.getBookingById(input.bookingId, ctx.auth.tenantId);
+        if (!booking) throw new TRPCError({ code: 'NOT_FOUND', message: 'Reserva não encontrada.' });
+        if (booking.professionalId !== ctx.auth.id) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Acesso negado.' });
+        }
+        if (booking.status !== 'pending_payment') {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Esta reserva não está aguardando pagamento.' });
+        }
+        if (booking.endTime <= new Date()) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'O horário desta reserva já passou. Cancele e faça uma nova.' });
+        }
+
+        const room = await db.getRoomById(booking.roomId, ctx.auth.tenantId);
+        if (!room) throw new TRPCError({ code: 'NOT_FOUND', message: 'Sala não encontrada.' });
+
+        const tenantId = booking.tenantId;
+        const totalPrice = booking.totalPrice;
+
+        // Reaproveita o payment já vinculado à reserva (evita registro
+        // duplicado); se por algum motivo não existir, cria um novo.
+        let paymentId = booking.paymentId;
+        if (!paymentId) {
+          const paymentResult = await db.createPayment({
+            professionalId: ctx.auth.id,
+            tenantId,
+            amount: totalPrice,
+            method: 'credit_card',
+            status: 'pending',
+            metadata: JSON.stringify({ bookingId: booking.id, type: 'booking_payment' }),
+          });
+          paymentId = paymentResult?.id;
+          if (paymentId) await db.updateBooking(booking.id, { paymentId });
+        }
+
+        const appUrl = process.env.VITE_APP_URL || 'http://localhost:3000';
+        const paymentMethods: ('card' | 'pix')[] = input.paymentMethod === 'pix' ? ['pix'] : ['card'];
+
+        try {
+          const stripe = await import('stripe').then(m => new m.default(process.env.STRIPE_SECRET_KEY!));
+
+          const createSession = async (methods: ('card' | 'pix')[]) =>
+            stripe.checkout.sessions.create({
+              payment_method_types: methods,
+              line_items: [{
+                price_data: {
+                  currency: 'brl',
+                  product_data: {
+                    name: `Reserva: ${room.name}`,
+                    description: `${booking.startTime.toLocaleDateString('pt-BR')} ${booking.startTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} - ${booking.endTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`,
+                  },
+                  unit_amount: totalPrice,
+                },
+                quantity: 1,
+              }],
+              mode: 'payment',
+              success_url: `${appUrl}/bookings?payment=success`,
+              cancel_url: `${appUrl}/rooms?payment=cancelled`,
+              metadata: {
+                professionalId: ctx.auth.id.toString(),
+                tenantId: tenantId.toString(),
+                bookingId: booking.id.toString(),
+                paymentRecordId: paymentId?.toString() || '',
+                type: 'booking_payment',
+              },
+            });
+
+          let session;
+          try {
+            session = await createSession(paymentMethods);
+          } catch (err: any) {
+            if (input.paymentMethod === 'pix' && err?.message?.includes('payment_method_types')) {
+              session = await createSession(['card']);
+            } else {
+              throw err;
+            }
+          }
+
+          return { url: session.url };
+        } catch (err: any) {
           throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: err.message || 'Erro ao criar checkout' });
         }
       }),

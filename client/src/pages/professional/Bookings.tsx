@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useState, useMemo } from "react";
+import { ResumePaymentDialog } from "@/components/ResumePaymentDialog";
 
 // ─── Palette ────────────────────────────────────────────────────────────────
 const TERRACOTTA = "#7C5C4A";
@@ -66,11 +67,13 @@ function BookingDetailDialog({
   onClose,
   onRefresh,
   cancellationWindowMs,
+  onResumePayment,
 }: {
   booking: any | null;
   onClose: () => void;
   onRefresh: () => void;
   cancellationWindowMs: number;
+  onResumePayment: (bookingId: number) => void;
 }) {
   const [cancelReason, setCancelReason] = useState("");
   const cancelMutation = trpc.bookings.cancel.useMutation({
@@ -134,6 +137,15 @@ function BookingDetailDialog({
         </div>
 
         <DialogFooter className="flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          {booking.status === "pending_payment" && (
+            <Button
+              size="sm"
+              className="bg-[#7C5C4A] hover:bg-[#5A3F30] text-white"
+              onClick={() => onResumePayment(booking.id)}
+            >
+              Concluir pagamento
+            </Button>
+          )}
           {canCancelStatus && (
             canCancel ? (
               <AlertDialog>
@@ -415,6 +427,7 @@ export default function Bookings() {
   const { data: policy } = trpc.bookingPolicy.get.useQuery();
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
+  const [resumeBookingId, setResumeBookingId] = useState<number | null>(null);
 
   const toggleExpand = (id: number) => {
     setExpanded(prev => {
@@ -591,7 +604,9 @@ export default function Bookings() {
         onClose={() => setSelectedBooking(null)}
         onRefresh={refetch}
         cancellationWindowMs={cancellationWindowMs}
+        onResumePayment={(id) => { setSelectedBooking(null); setResumeBookingId(id); }}
       />
+      <ResumePaymentDialog bookingId={resumeBookingId} onClose={() => setResumeBookingId(null)} />
     </DashboardLayout>
   );
 }
