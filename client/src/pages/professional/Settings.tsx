@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { User, Link, Copy, CheckCircle2, AlertCircle } from "lucide-react";
+import { User, Link, Copy, CheckCircle2, AlertCircle, Lock, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
 
@@ -29,6 +29,35 @@ export default function ProfessionalSettings() {
   });
   const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
   const [checkingSlug, setCheckingSlug] = useState(false);
+
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [showPasswords, setShowPasswords] = useState(false);
+  const changePasswordMutation = trpc.auth.changePassword.useMutation({
+    onSuccess: () => {
+      toast.success("Senha alterada com sucesso!");
+      setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const handleChangePassword = () => {
+    if (!passwordForm.currentPassword || !passwordForm.newPassword) {
+      toast.error("Preencha a senha atual e a nova senha");
+      return;
+    }
+    if (passwordForm.newPassword.length < 6) {
+      toast.error("A nova senha deve ter pelo menos 6 caracteres");
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast.error("A confirmação não confere com a nova senha");
+      return;
+    }
+    changePasswordMutation.mutate({
+      currentPassword: passwordForm.currentPassword,
+      newPassword: passwordForm.newPassword,
+    });
+  };
 
   useEffect(() => {
     if (user) {
@@ -317,6 +346,70 @@ export default function ProfessionalSettings() {
             {updateMutation.isPending ? "Salvando..." : "Salvar Alterações"}
           </Button>
         </div>
+
+        {/* Segurança / Trocar senha */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Lock className="h-5 w-5 text-blue-600" />
+              Segurança
+            </CardTitle>
+            <CardDescription>Altere sua senha de acesso.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Senha atual</Label>
+              <div className="relative">
+                <Input
+                  type={showPasswords ? "text" : "password"}
+                  value={passwordForm.currentPassword}
+                  onChange={e => setPasswordForm(p => ({ ...p, currentPassword: e.target.value }))}
+                  placeholder="Sua senha atual"
+                  autoComplete="current-password"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPasswords(s => !s)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Nova senha</Label>
+                <Input
+                  type={showPasswords ? "text" : "password"}
+                  value={passwordForm.newPassword}
+                  onChange={e => setPasswordForm(p => ({ ...p, newPassword: e.target.value }))}
+                  placeholder="Mínimo 6 caracteres"
+                  autoComplete="new-password"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Confirmar nova senha</Label>
+                <Input
+                  type={showPasswords ? "text" : "password"}
+                  value={passwordForm.confirmPassword}
+                  onChange={e => setPasswordForm(p => ({ ...p, confirmPassword: e.target.value }))}
+                  placeholder="Repita a nova senha"
+                  autoComplete="new-password"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <Button
+                onClick={handleChangePassword}
+                disabled={changePasswordMutation.isPending}
+                variant="outline"
+              >
+                {changePasswordMutation.isPending ? "Alterando..." : "Alterar Senha"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );
