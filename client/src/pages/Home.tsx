@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { trpc } from "@/lib/trpc";
 import { ArrowRight, Circle, Calendar, CreditCard, Shield, Bell, TrendingUp, Zap, UserPlus } from "lucide-react";
 import { useState, useEffect } from "react";
+import { formatPhoneInput } from "@/lib/phoneMask";
 import { toast } from "sonner";
 import { useLocation, Link } from "wouter";
 import { Logo } from "@/components/Logo";
@@ -220,7 +221,7 @@ export default function Home() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone">Telefone *</Label>
-                    <Input id="phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} required placeholder="(00) 00000-0000" />
+                    <Input id="phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: formatPhoneInput(e.target.value) })} required placeholder="(00) 00000-0000" />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">

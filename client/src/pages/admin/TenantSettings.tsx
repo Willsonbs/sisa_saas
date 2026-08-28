@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { formatPhoneInput } from "@/lib/phoneMask";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -157,7 +158,7 @@ export default function TenantSettings() {
                     </div>
                     <div className="space-y-2">
                       <Label>Telefone</Label>
-                      <Input value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} placeholder="(11) 99999-9999" />
+                      <Input value={form.phone} onChange={e => setForm(p => ({ ...p, phone: formatPhoneInput(e.target.value) }))} placeholder="(11) 99999-9999" />
                     </div>
                   </div>
                   <div className="space-y-2">

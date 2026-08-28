@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
+import { formatPhoneInput } from "@/lib/phoneMask";
 import { toast } from "sonner";
 import { Users, Pencil, Trash2, Eye, Phone, Mail, Award, BookOpen, Search, CreditCard, MapPin, Calendar, IdCard, Building2, UserPlus } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
@@ -271,7 +272,7 @@ export default function Professionals() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label>Telefone</Label>
-                    <Input placeholder="(11) 99999-9999" value={createForm.phone} onChange={e => setCreateForm(f => ({ ...f, phone: e.target.value }))} />
+                    <Input placeholder="(11) 99999-9999" value={createForm.phone} onChange={e => setCreateForm(f => ({ ...f, phone: formatPhoneInput(e.target.value) }))} />
                   </div>
                   <div className="space-y-1">
                     <Label>Data de nascimento</Label>
@@ -424,7 +425,7 @@ export default function Professionals() {
                     </div>
                     <div className="space-y-1">
                       <Label>Telefone</Label>
-                      <Input placeholder="(11) 99999-9999" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
+                      <Input placeholder="(11) 99999-9999" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: formatPhoneInput(e.target.value) }))} />
                     </div>
                     <div className="space-y-1">
                       <Label>Data de nascimento</Label>
