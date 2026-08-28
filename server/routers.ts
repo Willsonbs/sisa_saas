@@ -342,6 +342,33 @@ export const appRouter = router({
         const available = !existing || existing.id === ctx.auth.id;
         return { available };
       }),
+
+    // Autoatendimento: qualquer usuário logado (profissional, admin, staff)
+    // troca a própria senha, sem depender de um admin resetar. Não existia
+    // nenhum caminho pra isso antes — só staff.resetPassword, que só admin
+    // pode chamar, e só pra outra pessoa.
+    changePassword: protectedProcedure
+      .input(z.object({
+        currentPassword: z.string().min(1, 'Informe sua senha atual'),
+        newPassword: z.string().min(6, 'A nova senha deve ter pelo menos 6 caracteres'),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { verifyPassword, hashPassword } = await import('./auth');
+        const user = ctx.user as any;
+        // Mesmo padrão do login: staff (recepção/financeiro) usa passwordHash,
+        // profissionais/admins cadastrados via formulário usam password.
+        const hashToVerify = user?.passwordHash ?? user?.password;
+        if (!hashToVerify) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Esta conta não usa senha (login social).' });
+        }
+        const isValid = await verifyPassword(input.currentPassword, hashToVerify);
+        if (!isValid) {
+          throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Senha atual incorreta.' });
+        }
+        const newHash = await hashPassword(input.newPassword);
+        await db.updateUserProfile(ctx.auth.id, user?.passwordHash ? { passwordHash: newHash } : { password: newHash });
+        return { success: true };
+      }),
   }),
 
   rooms: router({

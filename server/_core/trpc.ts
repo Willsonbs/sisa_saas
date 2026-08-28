@@ -6,6 +6,23 @@ import { resolveTenantId, type AuthenticatedUser } from "@shared/userContext";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
+  // SECURITY: erros não tratados explicitamente (ex: falha do driver do
+  // Postgres) chegavam ao cliente com a mensagem crua do banco — incluindo o
+  // texto da query e os parâmetros (já vimos vazar até valor criptografado de
+  // paciente). Qualquer erro que caia em INTERNAL_SERVER_ERROR (ou seja,
+  // qualquer coisa que NÃO foi um `throw new TRPCError({code, message})`
+  // intencional de negócio) tem a mensagem trocada por uma genérica; o erro
+  // real continua no log do servidor pra investigação.
+  errorFormatter({ shape, error }) {
+    if (error.code === 'INTERNAL_SERVER_ERROR') {
+      console.error('[tRPC INTERNAL_SERVER_ERROR]', error.cause ?? error);
+      return {
+        ...shape,
+        message: 'Erro interno do servidor. Tente novamente em instantes.',
+      };
+    }
+    return shape;
+  },
 });
 
 export const router = t.router;
