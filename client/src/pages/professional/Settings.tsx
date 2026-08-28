@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { formatPhoneInput } from "@/lib/phoneMask";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -192,7 +193,7 @@ export default function ProfessionalSettings() {
                 <Label>Telefone</Label>
                 <Input
                   value={form.phone}
-                  onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
+                  onChange={e => setForm(p => ({ ...p, phone: formatPhoneInput(e.target.value) }))}
                   placeholder="(11) 99999-9999"
                 />
               </div>

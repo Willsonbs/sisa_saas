@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useState, useMemo } from "react";
+import { formatPhoneInput } from "@/lib/phoneMask";
 
 // ─── Palette ────────────────────────────────────────────────────────────────
 const TERRACOTTA = "#7C5C4A";
@@ -350,7 +351,7 @@ function AppointmentsPanel({ bookingId, bookingStart, bookingEnd }: {
           <Input placeholder="Nome do paciente (opcional)" className="h-8 text-sm" value={newAppt.patientName}
             onChange={e => setNewAppt(p => ({ ...p, patientName: e.target.value }))} />
           <Input placeholder="Telefone (opcional)" className="h-8 text-sm" value={newAppt.patientPhone}
-            onChange={e => setNewAppt(p => ({ ...p, patientPhone: e.target.value }))} />
+            onChange={e => setNewAppt(p => ({ ...p, patientPhone: formatPhoneInput(e.target.value) }))} />
           <Textarea placeholder="Observações" className="text-sm min-h-[60px]" value={newAppt.notes}
             onChange={e => setNewAppt(p => ({ ...p, notes: e.target.value }))} />
           <div className="flex gap-2 justify-end">
@@ -393,7 +394,7 @@ function AppointmentsPanel({ bookingId, bookingStart, bookingEnd }: {
                   <Input placeholder="Nome do paciente" className="h-8 text-sm bg-white" value={editForm.patientName}
                     onChange={e => setEditForm(p => ({ ...p, patientName: e.target.value }))} />
                   <Input placeholder="Telefone (opcional)" className="h-8 text-sm bg-white" value={editForm.patientPhone}
-                    onChange={e => setEditForm(p => ({ ...p, patientPhone: e.target.value }))} />
+                    onChange={e => setEditForm(p => ({ ...p, patientPhone: formatPhoneInput(e.target.value) }))} />
                   <Textarea placeholder="Observações" className="text-sm min-h-[60px] bg-white" value={editForm.notes}
                     onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))} />
                   <div className="flex gap-2 justify-end">
